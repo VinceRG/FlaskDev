@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Processing Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles  .css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <h2>Processing Data...</h2>
+            <p>This may take several minutes. Please do not close this window.</p>
+            <p>(Running data pipeline and training new model)</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="dashboard">
+            <div class="stat-card">
+                <div class="stat-icon blue">📊</div>
+                <div class="stat-info">
+                    <span class="stat-label">Total Files</span>
+                    <span class="stat-value">{{ stats.total_files }}</span>
+                    <span class="stat-desc">Processed files</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon green">📈</div>
+                <div class="stat-info">
+                    <span class="stat-label">Total Records</span>
+                    <span class="stat-value">{{ "{:,.0f}".format(stats.total_records) }}</span>
+                    <span class="stat-desc">Data points</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon orange">✅</div>
+                <div class="stat-info">
+                    <span class="stat-label">Success Rate</span>
+                    <span class="stat-value">{{ stats.success_rate }}%</span>
+                    <span class="stat-desc">Process success</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon red">🔄</div>
+                <div class="stat-info">
+                    <span class="stat-label">Processing</span>
+                    <span class="stat-value">{{ stats.processing }}</span>
+                    <span class="stat-desc">Active uploads</span>
+                </div>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="main-content">
+            
+            <div class="panel">
+                <h2><span class="icon">⬆️</span> Upload New Data</h2>
+                
+                <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" onsubmit="showLoader()">
+                    
+                    <label for="file-upload">Select File(s)</label>
+                    <div class="file-drop-area">
+                        <input type="file" name="file" id="file-upload" required multiple>
+                        <p><b>Upload files</b> or drag and drop</p>
+                        <p class="small-text">XLSX files up to 16MB</p>
+                    </div>
+
+                    <div id="file-list-container" class="file-list-container">
+                        <span id="file-list-placeholder" class="small-text">No files selected.</span>
+                        <ul id="file-list"></ul>
+                    </div>
+
+                    <label for="description">Data Description (Optional)</label>
+                    <input type="text" id="description" name="description" placeholder="e.g., Q4 2025 ER admissions...">
+                    
+                    <button type="submit" class="btn-upload">Upload, Process & Train Model</button>
+                </form>
+            </div>
+            
+            <div class="panel">
+                <h2><span class="icon">ℹ️</span> Pipeline Information</h2>
+                <p>This UI triggers your custom 4-step Python pipeline.</p>
+                <ol class="pipeline-steps">
+                    <li><b>Save File(s):</b> Uploaded Excel files are saved to <code>data/excel_folder</code>.</li>
+                    <li><b>Step 1 (Convert):</b> The pipeline scans for new <code>.xlsx</code> files and converts them to <code>.csv</code> in <code>data/csv_folder</code>.</li>
+                    <li><b>Step 2 (Clean):</b> New <code>.csv</code> files are cleaned, formatted, and saved in-place.</li>
+                    <li><b>Step 3 (Append):</b> Cleaned <code>.csv</code> data is appended to <code>data/processed/master_dataset.csv</code>.</li>
+                    <li><b>Step 4 (Reshape):</b> The master file is reshaped and de-duplicated into the final <code>data/processed/master_dataset_cleaned.csv</code>.</li>
+                    <li><b>Step 5 (Train):</b> The cleaned data is used to train a new Random Forest model, which is saved to <code>logs/random_forest_model.pkl</code>.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showLoader() {
+            // Check if files are selected
+            const fileInput = document.getElementById('file-upload');
+            if (fileInput.files.length > 0) {
+                 document.getElementById('loading-overlay').style.display = 'flex';
+            }
+            // If no files, the form's 'required' attribute will stop submission
+            // and the loader won't show.
+        }
+
+        document.getElementById('file-upload').addEventListener('change', function(event) {
+            const fileList = document.getElementById('file-list');
+            const placeholder = document.getElementById('file-list-placeholder');
+            
+            fileList.innerHTML = '';
+            const files = event.target.files;
+            
+            if (files.length > 0) {
+                placeholder.style.display = 'none';
+                for (let i = 0; i < files.length; i++) {
+                    const li = document.createElement('li');
+                    li.textContent = files[i].name;
+                    fileList.appendChild(li);
+                }
+            } else {
+                placeholder.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
