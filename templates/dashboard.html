@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictive Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- We will need Chart.js to draw charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    
+    <!-- Shared Navigation Header -->
+    <div class="header-nav">
+        <div class="header-container">
+            <h1>Data Pipeline Dashboard</h1>
+            <nav>
+                <a href="{{ url_for('index') }}" class="nav-link">Upload & Train</a>
+                <a href="{{ url_for('dashboard') }}" class="nav-link active">Prediction Dashboard</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation for the dashboard -->
+        <div class="dashboard-sidebar">
+            <nav>
+                <button class="nav-button active" data-page="predict">
+                    <span class="icon">🔮</span> Make Prediction
+                </button>
+                <button class="nav-button" data-page="past-data">
+                    <span class="icon">📂</span> Past Data
+                </button>
+                <button class="nav-button" data-page="forecast">
+                    <span class="icon">📈</span> Annual Forecast
+                </button>
+                <button class="nav-button" data-page="top-cases">
+                    <span class="icon">🏆</span> Top 10 Cases
+                </button>
+            </nav>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="dashboard-main-content">
+
+            <!-- Page 1: Make Prediction -->
+            <div class="page-content active" id="page-predict">
+                <h2><span class="icon">🔮</span> Make Prediction</h2>
+                <p>Fill in the features below to get a single prediction from the trained model.</p>
+                
+                <form id="prediction-form" class="prediction-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="pred-year">Year (e.g., 2024)</label>
+                            <input type="number" id="pred-year" value="2024" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="pred-month">Month</label>
+                            <select id="pred-month" required>
+                                <option value="1">1 - January</option>
+                                <option value="2">2 - February</option>
+                                <option value="3">3 - March</option>
+                                <option value="4">4 - April</option>
+                                <option value="5">5 - May</option>
+                                <option value="6">6 - June</option>
+                                <option value="7">7 - July</option>
+                                <option value="8">8 - August</option>
+                                <option value="9">9 - September</option>
+                                <option value="10">10 - October</option>
+                                <option value="11">11 - November</option>
+                                <option value="12">12 - December</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pred-consult">Consultation Type</label>
+                            <select id="pred-consult" required>
+                                <option value="1">1 - Consultation</option>
+                                <option value="2">2 - Diagnosis</option>
+                                <option value="3">3 - Mortality</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pred-sex">Sex</label>
+                            <select id="pred-sex" required>
+                                <option value="1">1 - Male</option>
+                                <option value="0">0 - Female</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pred-age">Age Range</label>
+                            <select id="pred-age" required>
+                                <option value="0">0 - Under 1</option>
+                                <option value="1">1 - (1-4)</option>
+                                <option value="2">2 - (5-9)</option>
+                                <option value="3">3 - (10-14)</option>
+                                <option value="4">4 - (15-18)</option>
+                                <option value="5">5 - (19-24)</option>
+                                <option value="6">6 - (25-29)</option>
+                                <option value="7">7 - (30-34)</option>
+                                <option value="8">8 - (35-39)</option>
+                                <option value="9">9 - (40-44)</option>
+                                <option value="10">10 - (45-49)</option>
+                                <option value="11">11 - (50-54)</option>
+                                <option value="12">12 - (55-59)</option>
+                                <option value="13">13 - (60-64)</option>
+                                <option value="14">14 - (65-69)</option>
+                                <option value="15">15 - (70 & Over)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pred-case">Case ID</label>
+                            <input type="number" id="pred-case" value="1" required>
+                            <small>See 'Top 10 Cases' tab for IDs.</small>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-train">Predict Total Cases</button>
+                </form>
+                <div id="prediction-result-container" style="display: none;">
+                    <h4>Prediction Result:</h4>
+                    <div id="prediction-result" class="prediction-result-box"></div>
+                </div>
+            </div>
+
+            <!-- Page 2: Past Data -->
+            <div class="page-content" id="page-past-data">
+                <h2><span class="icon">📂</span> Past Data Overview</h2>
+                <div class="chart-container">
+                    <h3>Historical Total Cases (All Time)</h3>
+                    <canvas id="past-data-chart"></canvas>
+                </div>
+               
+            </div>
+
+            <!-- Page 3: Annual Forecast -->
+            <div class="page-content" id="page-forecast">
+                <h2><span class="icon">📈</span> Annual Forecast</h2>
+                <div class="form-group">
+                    <label for="forecast-year">Select Year to Analyze</label>
+                    <select id="forecast-year">
+                        <!-- JS will populate this -->
+                    </select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="forecast-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Page 4: Top 10 Cases -->
+            <div class="page-content" id="page-top-cases">
+                <h2><span class="icon">🏆</span> Top 10 Cases by Month</h2>
+                <div class="form-group">
+                    <label for="top-cases-month">Select Month</label>
+                    <select id="top-cases-month">
+                        <option value="1">1 - January</option>
+                        <option value="2">2 - February</option>
+                        <option value="3">3 - March</option>
+                        <option value="4">4 - April</option>
+                        <option value="5">5 - May</option>
+                        <option value="6">6 - June</option>
+                        <option value="7">7 - July</option>
+                        <option value="8">8 - August</option>
+                        <option value="9">9 - September</option>
+                        <option value="10">10 - October</option>
+                        <option value="11">11 - November</option>
+                        <option value="12">12 - December</option>
+                    </select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="top-cases-chart"></canvas>
+                </div>
+                <h3>Top 10 Cases Data</h3>
+                <div class="table-container">
+                    <table id="top-cases-table">
+                        <!-- JS will build this -->
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Link to the new dashboard.js file -->
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

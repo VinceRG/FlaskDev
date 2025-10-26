@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Processing Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles  .css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -12,11 +12,25 @@
     <div id="loading-overlay">
         <div class="loader-content">
             <div class="spinner"></div>
-            <h2>Processing Data...</h2>
-            <p>This may take several minutes. Please do not close this window.</p>
-            <p>(Running data pipeline and training new model)</p>
+            <!-- These texts will be changed by JavaScript -->
+            <h2 id="loader-title">Processing...</h2>
+            <p id="loader-text">Please do not close this window.</p>
         </div>
     </div>
+
+    <!-- --- NEW SHARED NAVIGATION HEADER --- -->
+    <div class="header-nav">
+        <div class="header-container">
+            <h1>Data Pipeline Dashboard</h1>
+            <nav>
+                <!-- Set this link as 'active' -->
+                <a href="{{ url_for('index') }}" class="nav-link active">Upload & Train</a>
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Prediction Dashboard</a>
+            </nav>
+        </div>
+    </div>
+    <!-- --- END OF HEADER --- -->
+
 
     <div class="container">
         <div class="dashboard">
@@ -69,7 +83,8 @@
             <div class="panel">
                 <h2><span class="icon">⬆️</span> Upload New Data</h2>
                 
-                <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" onsubmit="showLoader()">
+                <!-- This form now only submits for UPLOAD -->
+                <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" onsubmit="showUploadLoader()">
                     
                     <label for="file-upload">Select File(s)</label>
                     <div class="file-drop-area">
@@ -86,54 +101,39 @@
                     <label for="description">Data Description (Optional)</label>
                     <input type="text" id="description" name="description" placeholder="e.g., Q4 2025 ER admissions...">
                     
-                    <button type="submit" class="btn-upload">Upload, Process & Train Model</button>
+                    <!-- Text on this button is changed -->
+                    <button type="submit" class="btn-upload">Upload & Process Files</button>
                 </form>
             </div>
             
             <div class="panel">
-                <h2><span class="icon">ℹ️</span> Pipeline Information</h2>
-                <p>This UI triggers your custom 4-step Python pipeline.</p>
+                <h2><span class="icon">ℹ️</span> Pipeline & Model</h2>
+                <p>This UI triggers your custom Python pipeline and model training scripts.</p>
                 <ol class="pipeline-steps">
-                    <li><b>Save File(s):</b> Uploaded Excel files are saved to <code>data/excel_folder</code>.</li>
-                    <li><b>Step 1 (Convert):</b> The pipeline scans for new <code>.xlsx</code> files and converts them to <code>.csv</code> in <code>data/csv_folder</code>.</li>
-                    <li><b>Step 2 (Clean):</b> New <code>.csv</code> files are cleaned, formatted, and saved in-place.</li>
-                    <li><b>Step 3 (Append):</b> Cleaned <code>.csv</code> data is appended to <code>data/processed/master_dataset.csv</code>.</li>
-                    <li><b>Step 4 (Reshape):</b> The master file is reshaped and de-duplicated into the final <code>data/processed/master_dataset_cleaned.csv</code>.</li>
-                    <li><b>Step 5 (Train):</b> The cleaned data is used to train a new Random Forest model, which is saved to <code>logs/random_forest_model.pkl</code>.</li>
+                    <li><b>Upload & Process:</b> Saves <code>.xlsx</code> files and runs the 4-step data pipeline, ending with <code>master_dataset_cleaned.csv</code>.</li>
+                    <li><b>Train Model:</b> This separate step uses the *entire* cleaned dataset to train and save the Random Forest model.</li>
                 </ol>
+
+                <!-- --- NEW SECTION FOR TRAINING --- -->
+                <hr>
+                <h4><span class="icon">🤖</span> Model Training</h4>
+                <p>Click the button below to train the model on the latest 
+                   <code>master_dataset_cleaned.csv</code> file.</p>
+                
+                <form action="{{ url_for('train_model') }}" method="POST" onsubmit="showTrainLoader()">
+                    <button type="submit" class="btn-train">Train New Model</button>
+                </form>
+                <!-- --- END OF NEW SECTION --- -->
+
             </div>
         </div>
     </div>
 
-    <script>
-        function showLoader() {
-            // Check if files are selected
-            const fileInput = document.getElementById('file-upload');
-            if (fileInput.files.length > 0) {
-                 document.getElementById('loading-overlay').style.display = 'flex';
-            }
-            // If no files, the form's 'required' attribute will stop submission
-            // and the loader won't show.
-        }
-
-        document.getElementById('file-upload').addEventListener('change', function(event) {
-            const fileList = document.getElementById('file-list');
-            const placeholder = document.getElementById('file-list-placeholder');
-            
-            fileList.innerHTML = '';
-            const files = event.target.files;
-            
-            if (files.length > 0) {
-                placeholder.style.display = 'none';
-                for (let i = 0; i < files.length; i++) {
-                    const li = document.createElement('li');
-                    li.textContent = files[i].name;
-                    fileList.appendChild(li);
-                }
-            } else {
-                placeholder.style.display = 'block';
-            }
-        });
-    </script>
+    <!-- 
+    We now link to the external main.js file
+    and all inline <script> is removed.
+    -->
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    
 </body>
 </html>

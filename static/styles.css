@@ -286,3 +286,226 @@ input[type="text"] {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+.btn-train {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background-color: var(--blue); /* A distinct blue color */
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.btn-train:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+/* Style for the horizontal rule separator */
+hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 24px 0;
+}.header-nav {
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 24px;
+    margin-bottom: 24px;
+}
+
+.header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-container h1 {
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+.header-nav nav {
+    display: flex;
+}
+
+.header-nav .nav-link {
+    padding: 20px 16px;
+    text-decoration: none;
+    color: var(--text-light);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 3px solid transparent;
+}
+
+.header-nav .nav-link:hover {
+    color: var(--text-color);
+}
+
+.header-nav .nav-link.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+}
+
+/* --- Dashboard Layout --- */
+.dashboard-container {
+    display: grid;
+    grid-template-columns: 240px 1fr; /* Sidebar | Main Content */
+    gap: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.dashboard-sidebar {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    align-self: start; /* Sticks to top */
+}
+
+.dashboard-sidebar nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dashboard-sidebar .nav-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-color);
+    background-color: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.dashboard-sidebar .nav-button .icon {
+    font-size: 1.25rem;
+}
+
+.dashboard-sidebar .nav-button:hover {
+    background-color: #f4f7fa;
+}
+
+.dashboard-sidebar .nav-button.active {
+    background-color: var(--blue);
+    color: #fff;
+}
+
+.dashboard-main-content .page-content {
+    display: none; /* Hidden by default */
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.dashboard-main-content .page-content.active {
+    display: block; /* Shown by JS */
+}
+
+/* --- Dashboard Widgets --- */
+.prediction-form .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label,
+.page-content h3 {
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.form-group small {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-top: 4px;
+}
+
+.form-group input,
+.form-group select {
+    padding: 12px;
+    font-size: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+
+#prediction-result-container {
+    margin-top: 20px;
+}
+
+.prediction-result-box {
+    padding: 16px;
+    border-radius: 6px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    background-color: #f4f7fa;
+}
+.prediction-result-box.success {
+    border: 1px solid var(--green);
+    color: var(--green);
+    background-color: #eaf6ec;
+}
+.prediction-result-box.error {
+    border: 1px solid var(--red);
+    color: var(--red);
+    background-color: #ffeef0;
+}
+
+.chart-container {
+    margin-bottom: 24px;
+}
+
+.table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+.table-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-container th,
+.table-container td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+}
+
+.table-container th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.table-container tr:last-child td {
+    border-bottom: none;
+}
+
+/* Flash message transition */
+.flash {
+    transition: opacity 0.3s ease-out;
+}
