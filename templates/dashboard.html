@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- We will need Chart.js to draw charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Styles for the summary panel have been removed -->
 </head>
 <body>
     
@@ -27,16 +29,13 @@
         <div class="dashboard-sidebar">
             <nav>
                 <button class="nav-button active" data-page="predict">
-                    <span class="icon">🔮</span> Make Prediction
+                    <span class="icon"></span> Make Prediction
                 </button>
                 <button class="nav-button" data-page="past-data">
-                    <span class="icon">📂</span> Past Data
-                </button>
-                <button class="nav-button" data-page="forecast">
-                    <span class="icon">📈</span> Annual Forecast
+                    <span class="icon"></span> Past Data
                 </button>
                 <button class="nav-button" data-page="top-cases">
-                    <span class="icon">🏆</span> Top 10 Cases
+                    <span class="icon"></span> Top 10 Cases
                 </button>
             </nav>
         </div>
@@ -58,54 +57,54 @@
                         <div class="form-group">
                             <label for="pred-month">Month</label>
                             <select id="pred-month" required>
-                                <option value="1">1 - January</option>
-                                <option value="2">2 - February</option>
-                                <option value="3">3 - March</option>
-                                <option value="4">4 - April</option>
-                                <option value="5">5 - May</option>
-                                <option value="6">6 - June</option>
-                                <option value="7">7 - July</option>
-                                <option value="8">8 - August</option>
-                                <option value="9">9 - September</option>
-                                <option value="10">10 - October</option>
-                                <option value="11">11 - November</option>
-                                <option value="12">12 - December</option>
+                                <option value="1">January</option>
+                                <option value="2">February</option>
+                                <option value="3">March</option>
+                                <option value="4">April</option>
+                                <option value="5">May</option>
+                                <option value="6">June</option>
+                                <option value="7">July</option>
+                                <option value="8">August</option>
+                                <option value="9">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="pred-consult">Consultation Type</label>
                             <select id="pred-consult" required>
-                                <option value="1">1 - Consultation</option>
-                                <option value="2">2 - Diagnosis</option>
-                                <option value="3">3 - Mortality</option>
+                                <option value="1">Consultation</option>
+                                <option value="2">Diagnosis</option>
+                                <option value="3">Mortality</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="pred-sex">Sex</label>
                             <select id="pred-sex" required>
-                                <option value="1">1 - Male</option>
-                                <option value="0">0 - Female</option>
+                                <option value="1">Male</option>
+                                <option value="0">Female</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="pred-age">Age Range</label>
                             <select id="pred-age" required>
-                                <option value="0">0 - Under 1</option>
-                                <option value="1">1 - (1-4)</option>
-                                <option value="2">2 - (5-9)</option>
-                                <option value="3">3 - (10-14)</option>
-                                <option value="4">4 - (15-18)</option>
-                                <option value="5">5 - (19-24)</option>
-                                <option value="6">6 - (25-29)</option>
-                                <option value="7">7 - (30-34)</option>
-                                <option value="8">8 - (35-39)</option>
-                                <option value="9">9 - (40-44)</option>
-                                <option value="10">10 - (45-49)</option>
-                                <option value="11">11 - (50-54)</option>
-                                <option value="12">12 - (55-59)</option>
-                                <option value="13">13 - (60-64)</option>
-                                <option value="14">14 - (65-69)</option>
-                                <option value="15">15 - (70 & Over)</option>
+                                <option value="0">Under 1</option>
+                                <option value="1">1-4</option>
+                                <option value="2">5-9</option>
+                                <option value="3">10-14</option>
+                                <option value="4">15-18</option>
+                                <option value="5">19-24</option>
+                                <option value="6">25-29</option>
+                                <option value="7">30-34</option>
+                                <option value="8">35-39</option>
+                                <option value="9">40-44</option>
+                                <option value="10">45-49</option>
+                                <option value="11">50-54</option>
+                                <option value="12">55-59</option>
+                                <option value="13">60-64</option>
+                                <option value="14">65-69</option>
+                                <option value="15">70 & Over</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -124,7 +123,7 @@
 
             <!-- Page 2: Past Data -->
             <div class="page-content" id="page-past-data">
-                <h2><span class="icon">📂</span> Past Data Overview</h2>
+                <h2><span class="icon"></span> Past Data Overview</h2>
                 <div class="chart-container">
                     <h3>Historical Total Cases (All Time)</h3>
                     <canvas id="past-data-chart"></canvas>
@@ -132,55 +131,75 @@
                
             </div>
 
-            <!-- Page 3: Annual Forecast -->
-            <div class="page-content" id="page-forecast">
-                <h2><span class="icon">📈</span> Annual Forecast</h2>
-                <div class="form-group">
-                    <label for="forecast-year">Select Year to Analyze</label>
-                    <select id="forecast-year">
-                        <!-- JS will populate this -->
-                    </select>
-                </div>
+        
+
+            <!-- Page 4: Top 10 Cases -->
+<div class="page-content" id="page-top-cases">
+            <!-- This title reflects that the data is coming from your model -->
+            <h2><span class="icon"></span> Top 10 Predicted Cases by Month</h2>
+            <div class="form-group">
+                <label for="top-cases-month">Select Month</label>
+                <select id="top-cases-month">
+                    <option value="1">1 - January</option>
+                    <option value="2">2 - February</option>
+                    <option value="3">3 - March</option>
+                    <option value="4">4 - April</option>
+                    <option value="5">5 - May</option>
+                    <option value="6">6 - June</option>
+                    <option value="7">7 - July</option>
+                    <option value="8">8 - August</option>
+                    <option value="9">9 - September</option>
+                    <option value="10">10 - October</option>
+                    <option value="11">11 - November</option>
+                    <option value="12">12 - December</option>
+                </select>
+            </div>
+
+            <!-- The Monthly Prediction Summary panel has been removed -->
+            
+            <div class="top-case-category">
+                <h3>Top 10: Consultation</h3>
                 <div class="chart-container">
-                    <canvas id="forecast-chart"></canvas>
+                    <canvas id="top-cases-chart-consultation"></canvas>
+                </div>
+                <h4>Data</h4>
+                <div class="table-container">
+                    <table id="top-cases-table-consultation">
+                        </table>
                 </div>
             </div>
 
-            <!-- Page 4: Top 10 Cases -->
-            <div class="page-content" id="page-top-cases">
-                <h2><span class="icon">🏆</span> Top 10 Cases by Month</h2>
-                <div class="form-group">
-                    <label for="top-cases-month">Select Month</label>
-                    <select id="top-cases-month">
-                        <option value="1">1 - January</option>
-                        <option value="2">2 - February</option>
-                        <option value="3">3 - March</option>
-                        <option value="4">4 - April</option>
-                        <option value="5">5 - May</option>
-                        <option value="6">6 - June</option>
-                        <option value="7">7 - July</option>
-                        <option value="8">8 - August</option>
-                        <option value="9">9 - September</option>
-                        <option value="10">10 - October</option>
-                        <option value="11">11 - November</option>
-                        <option value="12">12 - December</option>
-                    </select>
-                </div>
+            <div class="top-case-category">
+                <h3>Top 10: Diagnosis</h3>
                 <div class="chart-container">
-                    <canvas id="top-cases-chart"></canvas>
+                    <canvas id="top-cases-chart-diagnosis"></canvas>
                 </div>
-                <h3>Top 10 Cases Data</h3>
+                <h4>Data</h4>
                 <div class="table-container">
-                    <table id="top-cases-table">
-                        <!-- JS will build this -->
-                    </table>
+                    <table id="top-cases-table-diagnosis">
+                        </table>
                 </div>
             </div>
+
+            <div class="top-case-category">
+                <h3>Top 10: Mortality</h3>
+                <div class="chart-container">
+                    <canvas id="top-cases-chart-mortality"></canvas>
+                </div>
+                <h4>Data</h4>
+                <div class="table-container">
+                    <table id="top-cases-table-mortality">
+                        </table>
+                </div>
+            </div>
+        </div>
 
         </div>
     </div>
+    
 
     <!-- Link to the new dashboard.js file -->
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 </body>
 </html>
+

@@ -1,0 +1,38 @@
+{
+  "data_load": "\u2705 Loaded dataset (20032 rows)",
+  "data_split": "Train: 16025 rows | Test: 4007 rows",
+  "evaluation": {
+    "R\u00b2 Score": 0.8648,
+    "MAE": 1.2675,
+    "MSE": 8.282,
+    "RMSE": 2.8779
+  },
+  "summary_table_tail": [
+    {
+      "Date": "2024-08",
+      "Actual_Total_Patients": 2637,
+      "Predicted_Total_Patients": 2720
+    },
+    {
+      "Date": "2024-09",
+      "Actual_Total_Patients": 2606,
+      "Predicted_Total_Patients": 2708
+    },
+    {
+      "Date": "2024-10",
+      "Actual_Total_Patients": 3491,
+      "Predicted_Total_Patients": 3454
+    },
+    {
+      "Date": "2024-11",
+      "Actual_Total_Patients": 3524,
+      "Predicted_Total_Patients": 3470
+    },
+    {
+      "Date": "2024-12",
+      "Actual_Total_Patients": 3400,
+      "Predicted_Total_Patients": 3384
+    }
+  ],
+  "model_saved": "\u2705 Model saved to D:\\FlaskDev\\logs\\random_forest_model.pkl"
+}

@@ -3,7 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Global Chart Instances ---
     let pastDataChart = null;
     let forecastChart = null;
-    let topCasesChart = null;
+    // Updated for categorized charts
+    let topCasesConsultationChart = null;
+    let topCasesDiagnosisChart = null;
+    let topCasesMortalityChart = null;
 
     // --- DOM Elements ---
     const sidebarButtons = document.querySelectorAll('.dashboard-sidebar .nav-button');
@@ -15,17 +18,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const predictionResultContainer = document.getElementById('prediction-result-container');
 
     // Past Data Page
-    const pastDataTable = document.getElementById('past-data-table');
     const pastDataChartCanvas = document.getElementById('past-data-chart');
 
     // Forecast Page
     const forecastYearSelect = document.getElementById('forecast-year');
     const forecastChartCanvas = document.getElementById('forecast-chart');
 
-    // Top Cases Page
+    // Top Cases Page (Updated)
     const topCasesMonthSelect = document.getElementById('top-cases-month');
-    const topCasesTable = document.getElementById('top-cases-table');
-    const topCasesChartCanvas = document.getElementById('top-cases-chart');
+    
+    const topCasesTableConsultation = document.getElementById('top-cases-table-consultation');
+    const topCasesChartCanvasConsultation = document.getElementById('top-cases-chart-consultation');
+    const topCasesTableDiagnosis = document.getElementById('top-cases-table-diagnosis');
+    const topCasesChartCanvasDiagnosis = document.getElementById('top-cases-chart-diagnosis');
+    const topCasesTableMortality = document.getElementById('top-cases-table-mortality');
+    const topCasesChartCanvasMortality = document.getElementById('top-cases-chart-mortality');
 
     // --- Utility Functions ---
 
@@ -61,6 +68,66 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return null;
     }
+
+    /**
+     * Helper to populate one top-case table and chart.
+     * @param {HTMLElement} tableEl - The table element to populate.
+     * @param {HTMLElement} chartCanvasEl - The canvas element.
+     * @param {Chart} chartInstance - The existing chart instance (to destroy).
+     * @param {object} data - The data object ({ table: [], chart_data: { labels: [], data: [] } }).
+     * @param {string} barColor - The hex color for the chart bars.
+     * @returns {Chart} The new Chart.js instance.
+     */
+    function populateTopCaseCategory(tableEl, chartCanvasEl, chartInstance, data, barColor = '#007bff') {
+        // a) Populate Table
+        tableEl.innerHTML = `
+            <thead><tr>
+                <th>Case ID</th>
+                <th>Case Name</th>
+                <th>Total Cases</th>
+            </tr></thead>
+        `;
+        let tbody = '<tbody>';
+        if (data.table.length === 0) {
+            tbody += '<tr><td colspan="3">No data for this category.</td></tr>';
+        } else {
+            data.table.forEach(row => {
+                tbody += `<tr>
+                    <td>${row.Case}</td>
+                    <td>${row.CaseName}</td>
+                    <td>${row.Total}</td>
+                </tr>`;
+            });
+        }
+        tbody += '</tbody>';
+        tableEl.innerHTML += tbody;
+
+        // b) Populate Chart
+        chartInstance = destroyChart(chartInstance);
+        chartInstance = new Chart(chartCanvasEl, {
+            type: 'bar',
+            data: {
+                labels: data.chart_data.labels,
+                datasets: [{
+                    label: 'Total Cases',
+                    data: data.chart_data.data,
+                    backgroundColor: barColor
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: {
+                    legend: {
+                        // Only show legend if there is data
+                        display: data.chart_data.labels.length > 0
+                    }
+                }
+            }
+        });
+        return chartInstance;
+    }
+
 
     // --- Page Load/Event Functions ---
 
@@ -112,8 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(result.error || 'Failed to fetch past data');
             }
             
-
-            // b) Populate Chart
+            // Populate Chart
             pastDataChart = destroyChart(pastDataChart);
             pastDataChart = new Chart(pastDataChartCanvas, {
                 type: 'line',
@@ -180,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 4. Top Cases Page
+    // 4. Top Cases Page (REWRITTEN)
     async function loadTopCases() {
         const month = topCasesMonthSelect.value;
 
@@ -188,7 +254,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/top_cases', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ month: month })
+                body: JSON.stringify({ month: month }),
+                cache: 'no-cache' // <-- ****** THIS IS THE FIX ******
             });
 
             const result = await response.json();
@@ -197,45 +264,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(result.error || `Failed to fetch top cases for month ${month}`);
             }
 
-            // a) Populate Table
-            topCasesTable.innerHTML = `
-                <thead><tr>
-                    <th>Case ID</th>
-                    <th>Case Name</th>
-                    <th>Total Cases</th>
-                </tr></thead>
-            `;
-            let tbody = '<tbody>';
-            result.table.forEach(row => {
-                tbody += `<tr>
-                    <td>${row.Case}</td>
-                    <td>${row.CaseName}</td>
-                    <td>${row.Total}</td>
-                </tr>`;
-            });
-            tbody += '</tbody>';
-            topCasesTable.innerHTML += tbody;
-
-            // b) Populate Chart
-            topCasesChart = destroyChart(topCasesChart);
-            topCasesChart = new Chart(topCasesChartCanvas, {
-                type: 'bar',
-                data: {
-                    labels: result.chart_data.labels,
-                    datasets: [{
-                        label: 'Total Cases',
-                        data: result.chart_data.data,
-                        backgroundColor: '#007bff'
-                    }]
-                },
-                options: {
-                    indexAxis: 'y', // Horizontal bar chart
-                    responsive: true
-                }
-            });
+            // Populate all three categories using the new helper
+            topCasesConsultationChart = populateTopCaseCategory(
+                topCasesTableConsultation,
+                topCasesChartCanvasConsultation,
+                topCasesConsultationChart,
+                result.consultation,
+                '#007bff' // Blue
+            );
+            
+            topCasesDiagnosisChart = populateTopCaseCategory(
+                topCasesTableDiagnosis,
+                topCasesChartCanvasDiagnosis,
+                topCasesDiagnosisChart,
+                result.diagnosis,
+                '#28a745' // Green
+            );
+            
+            topCasesMortalityChart = populateTopCaseCategory(
+                topCasesTableMortality,
+                topCasesChartCanvasMortality,
+                topCasesMortalityChart,
+                result.mortality,
+                '#dc3545' // Red
+            );
 
         } catch (error) {
-            destroyChart(topCasesChart);
+            // Destroy all charts on error
+            topCasesConsultationChart = destroyChart(topCasesConsultationChart);
+            topCasesDiagnosisChart = destroyChart(topCasesDiagnosisChart);
+            topCasesMortalityChart = destroyChart(topCasesMortalityChart);
             showNotification(error.message, 'error');
         }
     }
@@ -273,7 +331,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initializers ---
 
     // Populate Year dropdown for forecast
-// Populate Year dropdown for forecast
     async function populateYears() {
         try {
             const response = await fetch('/api/available_years');

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ER Outbreak Analysis Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background-color: #f8f9fc;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    background-color: #6a0dad;
+    color: white;
+    padding: 15px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+  }
+  .container {
+    max-width: 900px;
+    margin: 30px auto;
+    background: #fff;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    text-align: center;
+    padding: 10px;
+  }
+  th {
+    background-color: #6a0dad;
+    color: white;
+  }
+  tr:hover {
+    background-color: #f2e6ff;
+    cursor: pointer;
+  }
+  h2 {
+    color: #333;
+  }
+  #chart-container {
+    margin-top: 30px;
+  }
+  canvas {
+    margin-top: 15px;
+  }
+</style>
+</head>
+<body>
+
+<header>📊 ER Outbreak Analysis Dashboard</header>
+
+<div class="container">
+  <h2>Detected Outbreak Months</h2>
+  <table id="outbreakTable">
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>ER Admissions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr data-date="2024-02-01"><td>February 2024</td><td>3798</td></tr>
+      <tr data-date="2024-10-01"><td>October 2024</td><td>3491</td></tr>
+      <tr data-date="2024-11-01"><td>November 2024</td><td>3524</td></tr>
+    </tbody>
+  </table>
+
+  <div id="chart-container">
+    <h2 id="chartTitle">Select a month to view top cases</h2>
+    <canvas id="casesChart" width="400" height="250"></canvas>
+  </div>
+</div>
+
+<script>
+  // === Sample Data ===
+  const topCases = {
+    "2024-02-01": { "83": 1228, "1": 383, "3": 330, "6": 259, "11": 193 },
+    "2024-10-01": { "1": 596, "47": 419, "6": 276, "48": 217, "3": 202 },
+    "2024-11-01": { "1": 834, "47": 360, "6": 348, "61": 281, "3": 194 },
+  };
+
+  const ctx = document.getElementById("casesChart").getContext("2d");
+  let casesChart;
+
+  // Function to update chart
+  function updateChart(date, monthLabel) {
+    const data = topCases[date];
+    const labels = Object.keys(data);
+    const values = Object.values(data);
+
+    document.getElementById("chartTitle").innerText = `Top Contributing Cases - ${monthLabel}`;
+
+    if (casesChart) {
+      casesChart.destroy();
+    }
+
+    casesChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "ER Admissions",
+            data: values,
+            backgroundColor: "rgba(106, 13, 173, 0.7)",
+            borderRadius: 6,
+          },
+        ],
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: "Total ER Admissions" },
+          },
+          x: {
+            title: { display: true, text: "Case ID" },
+          },
+        },
+        plugins: {
+          legend: { display: false },
+        },
+      },
+    });
+  }
+
+  // === Click Events ===
+  document.querySelectorAll("#outbreakTable tbody tr").forEach((row) => {
+    row.addEventListener("click", () => {
+      const date = row.getAttribute("data-date");
+      const monthLabel = row.cells[0].innerText;
+      updateChart(date, monthLabel);
+    });
+  });
+</script>
+</body>
+</html>
