@@ -273,13 +273,45 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initializers ---
 
     // Populate Year dropdown for forecast
-    function populateYears() {
-        const currentYear = new Date().getFullYear();
-        for (let year = currentYear; year >= 2020; year--) {
-            const option = document.createElement('option');
-            option.value = year;
-            option.textContent = year;
-            forecastYearSelect.appendChild(option);
+// Populate Year dropdown for forecast
+    async function populateYears() {
+        try {
+            const response = await fetch('/api/available_years');
+            const result = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to fetch years');
+            }
+
+            // Clear any existing options
+            forecastYearSelect.innerHTML = '';
+            
+            // Add a default placeholder
+            const placeholder = document.createElement('option');
+            placeholder.value = ''; // Empty value so the check 'if (!year) return' works
+            placeholder.textContent = 'Select a year...';
+            placeholder.disabled = true;
+            placeholder.selected = true;
+            forecastYearSelect.appendChild(placeholder);
+
+            // Populate with years from the API
+            result.years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                forecastYearSelect.appendChild(option);
+            });
+
+        } catch (error) {
+            console.error("Error populating years:", error);
+            // Fallback to default if API fails
+            const currentYear = new Date().getFullYear();
+            for (let year = currentYear + 5; year >= 2020; year--) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                forecastYearSelect.appendChild(option);
+            }
         }
     }
     

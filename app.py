@@ -269,45 +269,106 @@ def api_past_data():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/available_years')
+def api_available_years():
+    """
+    Gets the range of years available in the data, plus 5 future years.
+    """
+    try:
+        df = pd.read_csv(CLEANED_CSV)
+        if df.empty:
+            # Default if no data: current year +/- 5
+            current_year = pd.Timestamp.now().year
+            years = list(range(current_year - 5, current_year + 6)) # e.g., 2020 -> 2030
+        else:
+            min_year = int(df['Year'].min())
+            max_year = int(df['Year'].max())
+            # Create a list from the min data year up to max data year + 5
+            years = list(range(min_year, max_year + 6)) # +6 to be inclusive
+        
+        # Return years in descending order for the dropdown
+        return jsonify({'years': sorted(years, reverse=True)})
+        
+    except FileNotFoundError:
+        # Fallback if no CSV exists yet
+        current_year = pd.Timestamp.now().year
+        years = list(range(current_year - 5, current_year + 6)) # e.g., 2020 to 2030
+        return jsonify({'years': sorted(years, reverse=True)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 @app.route('/api/forecast', methods=['POST'])
 def api_forecast():
-    """Compares actual vs. predicted for a selected year."""
+    """
+    Compares actual vs. predicted for a selected year.
+    If a future year is selected, it generates a forecast 
+    using the most recent year's data as a template.
+    """
     try:
         year = int(request.json['year'])
         
-        # 1. Load model and data
+        # 1. Load model and full data
         model = joblib.load(MODEL_FILE)
         df = pd.read_csv(CLEANED_CSV)
         
-        # 2. Filter for the selected year
-        df_year = df[df['Year'] == year].copy()
-        if df_year.empty:
-            return jsonify({'error': f'No data found for year {year}.'}), 404
-            
-        # 3. Get features and predict
-        X_year = df_year[["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range"]]
-        df_year['Predicted'] = model.predict(X_year)
+        # Get the most recent year of data you have
+        max_data_year = df['Year'].max()
         
-        # 4. Aggregate by month
-        actual_by_month = df_year.groupby('Month')['Total'].sum()
-        predicted_by_month = df_year.groupby('Month')['Predicted'].sum()
-        
-        # 5. Format for Chart.js
-        # Ensure we have all 12 months, even if data is missing
+        # --- Define month labels for Chart.js ---
         months = range(1, 13)
         month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         
-        return jsonify({
-            'labels': month_labels,
-            'actual': [int(actual_by_month.get(m, 0)) for m in months],
-            'predicted': [round(predicted_by_month.get(m, 0), 2) for m in months]
-        })
-        
+        # --- SCENARIO 1: Back-testing a past or current year ---
+        # (This part is unchanged)
+        if year <= max_data_year:
+            df_year = df[df['Year'] == year].copy()
+            if df_year.empty:
+                return jsonify({'error': f'No data found for year {year}.'}), 404
+                
+            X_year = df_year[["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range"]]
+            df_year['Predicted'] = model.predict(X_year)
+            
+            actual_by_month = df_year.groupby('Month')['Total'].sum()
+            predicted_by_month = df_year.groupby('Month')['Predicted'].sum()
+
+            return jsonify({
+                'labels': month_labels,
+                'actual': [int(actual_by_month.get(m, 0)) for m in months],
+                'predicted': [round(predicted_by_month.get(m, 0), 2) for m in months]
+            })
+
+        # --- SCENARIO 2: Forecasting a future year ---
+        # (This logic is new)
+        else:
+            # 1. Use the most recent year's data as a template
+            df_template = df[df['Year'] == max_data_year].copy()
+            
+            # 2. Set the 'Year' to the future year you want to predict
+            df_template['Year'] = year 
+            
+            # 3. Create the feature set (X) from this template
+            #    We must drop 'Total' if it exists, as it's not a feature
+            features = ["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range"]
+            X_future = df_template[features]
+            
+            # 4. Predict on this *realistic* set of future data
+            X_future['Predicted'] = model.predict(X_future)
+            
+            # 5. Aggregate by month
+            predicted_by_month = X_future.groupby('Month')['Predicted'].sum()
+            
+            # 6. Format for Chart.js (Actual is 0)
+            return jsonify({
+                'labels': month_labels,
+                'actual': [0] * 12, # No actual data for the future
+                'predicted': [round(predicted_by_month.get(m, 0), 2) for m in months]
+            })
+
     except FileNotFoundError:
         return jsonify({'error': 'Model or data file not found. Please train model and process files.'}), 500
     except Exception as e:
+        print(f"Error in /api/forecast: {str(e)}") 
         return jsonify({'error': str(e)}), 500
-
 
 @app.route('/api/top_cases', methods=['POST'])
 def api_top_cases():
