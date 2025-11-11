@@ -1,492 +1,460 @@
-# D:\tesFolder\pipeline.py
-
 import os
-import pandas as pd
-import re
-from openpyxl import load_workbook
 import sys
+import subprocess
+from unittest import result
+import pandas as pd
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from werkzeug.utils import secure_filename
 import json
-import numpy as np
-import calendar
-import warnings
+import joblib 
+import warnings 
+import numpy as np 
+from flask import send_from_directory
+# --- ADDED IMPORTS for your new route ---
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-def main():
-    # Suppress specific UserWarnings from pandas
-    warnings.simplefilter(action='ignore', category=UserWarning)
+# --- Configuration ---
+BASE_FOLDER = r"D:\FlaskDev"
+INPUT_FOLDER = os.path.join(BASE_FOLDER, "data", "excel_folder")
+PROCESSED_FOLDER = os.path.join(BASE_FOLDER, "data", "processed")
+LOGS_FOLDER = os.path.join(BASE_FOLDER, "logs")
+CLEANED_CSV = os.path.join(PROCESSED_FOLDER, "master_dataset_cleaned.csv")
+EXCEL_LOG = os.path.join(LOGS_FOLDER, "converted_files.txt")
+MODEL_FILE = os.path.join(LOGS_FOLDER, "random_forest_model.pkl") 
+CASE_DICT_FILE = os.path.join(LOGS_FOLDER, "case_dictionary.json") 
+ALLOWED_EXTENSIONS = {'xlsx'}
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = INPUT_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.secret_key = 'your-secret-key-goes-here' 
 
-    # ----------------------------------------------------------------------
-    # 0. Imports and Configuration
-    # ----------------------------------------------------------------------
-    print("="*50)
-    print("PIPELINE: 0. CONFIGURATION AND SETUP")
-    print("="*50)
+# --- Helper Functions ---
+# (allowed_file, get_dashboard_stats, and get_top_10_by_type are unchanged)
 
-    # ----------------------------
-    # Paths
-    # ----------------------------
-    base_folder = r"D:\FlaskDev" 
+def get_top_10_by_type(df_month, consult_type_id, inv_case_dict_numeric, column_to_sum='Total'):
+    """
+    Helper to get top 10 cases for a specific consultation type,
+    summing a specified column (e.g., 'Total' or 'Predicted_Total').
+    """
+    
+    # Filter for the specific consultation type
+    df_type = df_month[df_month['Consultation_Type'] == consult_type_id]
+    
+    if df_type.empty:
+        return {'table': [], 'chart_data': {'labels': [], 'data': []}}
+    
+    # Group by 'Case' and sum the specified 'column_to_sum'
+    top_10 = df_type.groupby('Case')[column_to_sum].sum().nlargest(10).reset_index()
+    
+    # Rename the summed column back to 'Total' so the frontend can read it
+    top_10.rename(columns={column_to_sum: 'Total'}, inplace=True)
 
-    input_folder = os.path.join(base_folder, "data", "excel_folder")
-    csv_folder = os.path.join(base_folder, "data", "csv_folder")
-    out_folder = os.path.join(base_folder, "data", "processed")
-    logs_folder = os.path.join(base_folder, "logs")
-
-    # Specific File Paths
-    master_csv = os.path.join(out_folder, "master_dataset.csv")
-    cleaned_csv = os.path.join(out_folder, "master_dataset_cleaned.csv")
-    case_dict_file = os.path.join(logs_folder, "case_dictionary.json")
-
-    # Log files for each step
-    log_file_01_excel_csv = os.path.join(logs_folder, "converted_files.txt")
-    log_file_02_cleaning = os.path.join(logs_folder, "processed_files.log")
-    log_file_03_master = os.path.join(logs_folder, "csv_master_log.txt")
-
-    # ----------------------------
-    # Create all folders (This will create them if they don't exist)
-    # ----------------------------
-    os.makedirs(input_folder, exist_ok=True)
-    os.makedirs(csv_folder, exist_ok=True)
-    os.makedirs(out_folder, exist_ok=True)
-    os.makedirs(logs_folder, exist_ok=True)
-
-    print(f"Base folder set to: {base_folder}")
-    print("Configuration and folders are ready.\n")
-
-
-    # ----------------------------------------------------------------------
-    # 1. Convert Excel to CSV (from 01_EXCEL_CSV.ipynb)
-    # ----------------------------------------------------------------------
-    print("="*50)
-    print("PIPELINE: 1. EXCEL TO CSV CONVERSION")
-    print("="*50)
-
-    # Load log of already converted files
-    if os.path.exists(log_file_01_excel_csv):
-        with open(log_file_01_excel_csv, "r") as f:
-            converted_files = f.read().splitlines()
-    else:
-        converted_files = []
-
-    print(f"Found {len(converted_files)} files in Excel conversion log.")
-
-    # Loop through all Excel files
-    new_excel_files_converted = 0
-    for file_name in os.listdir(input_folder):
-        if file_name.endswith(".xlsx") and file_name not in converted_files:
-            try:
-                file_path = os.path.join(input_folder, file_name)
-                df = pd.read_excel(file_path)
-
-                # Generate CSV file name
-                csv_file_name = file_name.replace(".xlsx", ".csv")
-                csv_path = os.path.join(csv_folder, csv_file_name)
-
-                # Save to CSV
-                df.to_csv(csv_path, index=False)
-                print(f"Converted {file_name} to {csv_file_name}")
-
-                # Add to log
-                with open(log_file_01_excel_csv, "a") as f:
-                    f.write(file_name + "\n")
-                new_excel_files_converted += 1
-            except Exception as e:
-                print(f"❌ Error converting {file_name}: {e}")
-
-    if new_excel_files_converted == 0:
-        print("No new Excel files to convert. Already converted files were skipped.")
-    else:
-        print(f"Processing complete. Converted {new_excel_files_converted} new Excel files.")
-    print("\n")
-
-
-    # ----------------------------------------------------------------------
-    # 2. Clean CSV Files (from 02_CSV_Cleaning.ipynb)
-    # ----------------------------------------------------------------------
-    print("="*50)
-    print("PIPELINE: 2. INDIVIDUAL CSV CLEANING")
-    print("="*50)
-
-    # Final column schema
-    final_columns = [
-        "Month_year", "Consultation_Type", "Case",
-        "Under 1 Male", "Under 1 Female",
-        "1-4 Male", "1-4 Female",
-        "5-9 Male", "5-9 Female",
-        "10-14 Male", "10-14 Female",
-        "15-18 Male", "15-18 Female",
-        "19-24 Male", "19-24 Female",
-        "25-29 Male", "25-29 Female",
-        "30-34 Male", "30-34 Female",
-        "35-39 Male", "35-39 Female",
-        "40-44 Male", "40-44 Female",
-        "45-49 Male", "45-49 Female",
-        "50-54 Male", "50-54 Female",
-        "55-59 Male", "55-59 Female",
-        "60-64 Male", "60-64 Female",
-        "65-69 Male", "65-69 Female",
-        "70 Over Male", "70 Over Female"
-    ]
-
-    # Load already processed files
-    processed_files_02 = set()
-    if os.path.exists(log_file_02_cleaning):
-        with open(log_file_02_cleaning, "r") as f:
-            processed_files_02 = set(line.strip() for line in f.readlines())
-
-    print(f"Found {len(processed_files_02)} files in CSV cleaning log.")
-
-    # Scan and process only NEW CSV files
-    new_csv_files_cleaned = 0
-    for file in os.listdir(csv_folder):
-        if file.endswith(".csv") and file not in processed_files_02:  # ✅ Skip logged files
-            file_path = os.path.join(csv_folder, file)
-            try:
-                # STEP 1: Clean structure
-                df = pd.read_csv(file_path)
-
-                # Drop first column (extra index column)
-                if df.columns[0].startswith("Unnamed: 0") or df.columns[0] == "":
-                    df = df.drop(df.columns[0], axis=1)
-
-                # Add 2 new columns on the left
-                df.insert(0, "Month_year", "")
-                df.insert(1, "Consultation_Type", "")
-
-                # Trim/pad columns to match schema
-                if df.shape[1] > len(final_columns):
-                    df = df.iloc[:, :len(final_columns)]
-                while df.shape[1] < len(final_columns):
-                    df[f"Extra_{df.shape[1]}"] = ""
-
-                # Rename columns
-                df.columns = final_columns
-
-                # STEP 2: Extract Month-Year from raw text
-                with open(file_path, "r", encoding="utf-8") as f:
-                    text = f.read()
-
-                match = re.search(r"MONTH AND YEAR:\s*([A-Za-z]+)\s+(\d{4})", text)
-                month_year_value = ""
-                if match:
-                    month_name = match.group(1).strip().title()
-                    year = match.group(2).strip()
-                    try:
-                        month_num = list(calendar.month_name).index(month_name)
-                        month_year_value = f"{year} - {month_num}"
-                    except ValueError:
-                        pass
-
-                if month_year_value:
-                    df["Month_year"] = month_year_value
-
-                # STEP 3: Extract Consultation Type
-                current_category = None
-                found_categories = []
-
-                for i, row in df.iterrows():
-                    for cell in row.dropna().astype(str):
-                        if "TOP 10" in cell.upper():
-                            last_word = re.sub(r"[^\w]", "", cell.strip().split()[-1])
-                            current_category = last_word.capitalize()
-                            found_categories.append((i, current_category))
-                            break
-
-                    if current_category:
-                        df.at[i, "Consultation_Type"] = current_category
-
-                # STEP 4: Remove unwanted rows
-                drop_indexes = []
-                for i, row in df.iterrows():
-                    for cell in row.dropna().astype(str):
-                        if "PASIG CITY CHILDREN'S HOSPITAL/PASIG CITY COVID-19 REFERRAL CENTER" in cell.upper():
-                            drop_indexes.extend(range(i, i + 9))
-                            break
-
-                for i, row in df.iterrows():
-                    for cell in row.dropna().astype(str):
-                        if "TOTAL" in cell.upper().strip():
-                            drop_indexes.extend([i, i+1, i+2])
-                            break
-
-                drop_indexes = list(set(drop_indexes))
-                df = df.drop(drop_indexes, errors="ignore").reset_index(drop=True)
-
-                # STEP 5: Save and log
-                df.to_csv(file_path, index=False)
-
-                with open(log_file_02_cleaning, "a") as f:
-                    f.write(file + "\n")
-
-                print(f"✅ Processed and logged new file: {file}")
-                new_csv_files_cleaned += 1
-
-            except Exception as e:
-                print(f"❌ Error processing {file}: {e}")
-
-    if new_csv_files_cleaned == 0:
-        print("No new CSV files to clean.")
-    else:
-        print(f"🎯 All {new_csv_files_cleaned} new CSV files processed and logged.")
-    print("\n")
-
-
-    # ----------------------------------------------------------------------
-    # 3. Append CSVs to Master File (from 03_CSV_Masterfile.ipynb)
-    # ----------------------------------------------------------------------
-    print("="*50)
-    print("PIPELINE: 3. APPEND CSVS TO MASTER FILE")
-    print("="*50)
-
-    # Load processed file log
-    if os.path.exists(log_file_03_master):
-        with open(log_file_03_master, "r") as f:
-            processed_files_03 = set(line.strip() for line in f)
-    else:
-        processed_files_03 = set()
-
-    print(f"Found {len(processed_files_03)} files in master file log.")
-
-    # Scan for new CSV files
-    csv_files = [f for f in os.listdir(csv_folder) if f.lower().endswith(".csv")]
-    new_files_for_master = [f for f in csv_files if f not in processed_files_03]
-
-    if not new_files_for_master:
-        print("⚠️ No new files to append to master file.")
-    else:
-        print(f"📂 New files found to append: {new_files_for_master}")
-
-        # Load or create case dictionary
-        if os.path.exists(case_dict_file):
-            with open(case_dict_file, "r") as f:
-                case_dict = json.load(f)
-        else:
-            case_dict = {}
-        print(f"Loaded case dictionary with {len(case_dict)} entries.")
-
-        # Consultation mapping
-        consultation_map = {
-            "Consultation": 1,
-            "Diagnosis": 2,
-            "Mortality": 3
+    # Map Case IDs to names
+    top_10['CaseName'] = top_10['Case'].map(inv_case_dict_numeric).fillna('Unknown Case')
+    
+    # Format for table and chart
+    table_data = top_10.to_dict('records')
+    chart_labels = top_10['CaseName'].tolist()
+    chart_data = top_10['Total'].tolist()
+    
+    return {
+        'table': table_data,
+        'chart_data': {
+            'labels': chart_labels,
+            'data': chart_data
         }
-
-        # Function to safely load CSV
-        def safe_load_csv(file_path):
-            return pd.read_csv(file_path, engine="python", on_bad_lines="skip")
-
-        # Process new files
-        processed_dfs = []
-        master_columns = None
-        
-        if os.path.exists(master_csv):
-            try:
-                old_master_df = safe_load_csv(master_csv)
-                master_columns = old_master_df.columns
-            except pd.errors.EmptyDataError:
-                print("Master CSV exists but is empty.")
-                old_master_df = pd.DataFrame()
-        else:
-            old_master_df = pd.DataFrame()
-
-        for file in new_files_for_master:
-            file_path = os.path.join(csv_folder, file)
-            try:
-                df = safe_load_csv(file_path)
-
-                if df.empty:
-                    print(f"⚠️ Skipping {file}: no valid rows")
-                    continue
-
-                # Align columns with master if it exists
-                if master_columns is not None:
-                    for col in master_columns:
-                        if col not in df.columns:
-                            df[col] = None
-                    df = df.reindex(columns=master_columns)
-                
-                # Clean 'Case' column
-                if "Case" not in df.columns:
-                    print(f"⚠️ Skipping {file}: no 'Case' column found")
-                    continue
-
-                df = df[df["Case"].notna()]
-                df["Case"] = df["Case"].astype(str).str.strip()
-                df = df[df["Case"] != ""]
-
-                # Update case dictionary
-                unique_cases = df["Case"].unique()
-                for case in unique_cases:
-                    if case not in case_dict:
-                        case_dict[case] = len(case_dict) + 1
-
-                df["Case"] = df["Case"].map(case_dict)
-
-                # Encode Consultation_Type
-                if "Consultation_Type" in df.columns:
-                    df["Consultation_Type"] = df["Consultation_Type"].map(consultation_map)
-
-                processed_dfs.append(df)
-            except Exception as e:
-                print(f"❌ Error processing {file} for master: {e}")
-
-        # Append to master
-        if processed_dfs:
-            new_data = pd.concat(processed_dfs, ignore_index=True)
-
-            if not old_master_df.empty:
-                combined_df = pd.concat([old_master_df, new_data], ignore_index=True)
-            else:
-                combined_df = new_data
-            
-            combined_df.to_csv(master_csv, index=False)
-
-            # Save case dictionary
-            with open(case_dict_file, "w") as f:
-                json.dump(case_dict, f, indent=4)
-
-            # Update log
-            with open(log_file_03_master, "a") as f:
-                for file in new_files_for_master:
-                    f.write(file + "\n")
-
-            print(f"✅ Appended {len(new_files_for_master)} files to master")
-            print(f"📊 Total rows in master: {len(combined_df)}")
-            print(f"📖 Case dictionary size: {len(case_dict)}")
-        else:
-            print("⚠️ No valid rows to add from new files.")
-    print("\n")
-
-
-    # ----------------------------------------------------------------------
-    # 4. Reshape Master to Long Format (from 04_Master_Long.ipynb)
-    # ----------------------------------------------------------------------
-    print("="*50)
-    print("PIPELINE: 4. RESHAPE MASTER TO LONG FORMAT")
-    print("="*50)
-
-    # LOAD FILE
-    try:
-        final_df = pd.read_csv(master_csv)
-        print(f"Loaded {master_csv} with {len(final_df)} rows.")
-    except FileNotFoundError:
-        print(f"Error: The file was not found at {master_csv}")
-        print("Please make sure the 'master_dataset.csv' file exists before running this step.")
-        return # Changed from sys.exit
-    except pd.errors.EmptyDataError:
-        print(f"Error: {master_csv} is empty. No data to process.")
-        return # Changed from sys.exit
-
-    # Strip spaces from all column headers
-    final_df.columns = final_df.columns.str.strip()
-
-    # CREATE MAPPING DICTIONARIES
-    # Sex encoding
-    sex_map = {"Male": 1, "Female": 0}
-
-    # Age range encoding
-    age_map = {
-        "Under 1": 0, "1-4": 1, "5-9": 2, "10-14": 3, "15-18": 4, "19-24": 5,
-        "25-29": 6, "30-34": 7, "35-39": 8, "40-44": 9, "45-49": 10, "50-54": 11,
-        "55-59": 12, "60-64": 13, "65-69": 14, "70": 15, "70 Over": 15, "70 & OVER": 15
     }
 
-    # Consultation_Type encoding
-    consult_map = {name: idx for idx, name in enumerate(final_df["Consultation_Type"].dropna().unique(), start=1)}
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-    # Case encoding
-    case_map = {name: idx for idx, name in enumerate(final_df["Case"].dropna().unique(), start=1)}
-
-    # BUILD AGE+SEX MAPPING DICTIONARY
-    mapping_dict = {}
-    # Skip first 3 columns: Month_year, Consultation_Type, Case
-    for col in final_df.columns[3:]:
-        col_clean = col.strip()
-        parts = col_clean.split()
-        if len(parts) >= 2:
-            sex = parts[-1]
-            age = " ".join(parts[:-1])
-            mapping_dict[col_clean] = {"Age_range": age, "Sex": sex}
-
-    print("Mappings created.")
-
-    # RESHAPE INTO LONG FORMAT
-    reshaped_df = final_df.melt(
-        id_vars=["Month_year", "Consultation_Type", "Case"],
-        value_vars=final_df.columns[3:],
-        var_name="Age_Sex",
-        value_name="Total"
-    )
-
-    # Clean Age_Sex column
-    reshaped_df["Age_Sex"] = reshaped_df["Age_Sex"].str.strip()
-
-    # Map Age_range and Sex safely
-    reshaped_df["Age_range"] = reshaped_df["Age_Sex"].map(
-        lambda x: mapping_dict.get(x, {"Age_range": "Unknown"})["Age_range"]
-    )
-    reshaped_df["Sex"] = reshaped_df["Age_Sex"].map(
-        lambda x: mapping_dict.get(x, {"Sex": "Unknown"})["Sex"]
-    )
-
-    print(f"Reshaped to long format. New row count: {len(reshaped_df)}")
-
-    # SPLIT MONTH_YEAR INTO NUMERIC MONTH + YEAR
-    reshaped_df["Month_year"] = pd.to_datetime(reshaped_df["Month_year"], errors="coerce")
-    reshaped_df["Month"] = reshaped_df["Month_year"].dt.month
-    reshaped_df["Year"] = reshaped_df["Month_year"].dt.year
-
-    # HANDLE MISSING/EMPTY 'TOTAL' VALUES
-    reshaped_df["Total"] = pd.to_numeric(reshaped_df["Total"], errors='coerce').fillna(0).astype(int)
-
-    # ENCODE TO NUMERIC
-    reshaped_df["Sex"] = reshaped_df["Sex"].map(sex_map).fillna(-1).astype(int)
-    reshaped_df["Age_range"] = reshaped_df["Age_range"].map(age_map).fillna(-1).astype(int)
-    reshaped_df["Consultation_Type"] = reshaped_df["Consultation_Type"].map(consult_map).fillna(-1).astype(int)
-    reshaped_df["Case"] = reshaped_df["Case"].map(case_map).fillna(-1).astype(int)
-
-    print("Date/Time split and columns encoded.")
-
-    # FINAL NUMERIC STRUCTURE
-    final_numeric_columns = ["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range", "Total"]
-    reshaped_df = reshaped_df[final_numeric_columns]
-
-    # --- THIS IS THE FIX ---
-    # Drop exact duplicates from the final reshaped file
-    original_rows = len(reshaped_df)
-    reshaped_df.drop_duplicates(inplace=True)
-    new_rows = len(reshaped_df)
-    print(f"Deduplication complete: Removed {original_rows - new_rows} duplicate rows.")
-    # -----------------------------------------------------------------
-
-    # Drop rows where year or month could not be parsed
-    reshaped_df.dropna(subset=['Year', "Month"], inplace=True)
-    reshaped_df['Year'] = reshaped_df['Year'].astype(int)
-    reshaped_df['Month'] = reshaped_df['Month'].astype(int)
-
-
-    # SAVE TO CLEANED CSV
-    reshaped_df.to_csv(cleaned_csv, index=False)
-
-    print(f"✅ Cleaned numeric CSV saved as: {cleaned_csv}")
-    print(f"Number of rows: {reshaped_df.shape[0]}, Number of columns: {reshaped_df.shape[1]}")
-
-    # PRINT ENCODINGS
-    print("\n🔑 Encodings Used:")
-    print("Sex:", sex_map)
-    print("Age_range:", age_map)
-    print("Consultation_Type:", consult_map)
-    # Print case_map in a more readable way if it's too large
-    if len(case_map) > 20:
-        print(f"Case: {{... {len(case_map)} entries ...}}")
+def get_dashboard_stats():
+    stats = {
+        'total_files': 0,
+        'total_records': 0,
+        'success_rate': 100.0,
+        'processing': 0 
+    }
+    os.makedirs(INPUT_FOLDER, exist_ok=True)
+    os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+    os.makedirs(LOGS_FOLDER, exist_ok=True)
+    try:
+        if os.path.exists(EXCEL_LOG):
+            with open(EXCEL_LOG, "r") as f:
+                processed_count = len(f.read().splitlines())
+        stats['total_files'] = processed_count
+    except Exception:
+        stats['total_files'] = 0
+    try:
+        df = pd.read_csv(CLEANED_CSV)
+        stats['total_records'] = len(df)
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        stats['total_records'] = 0
+    except Exception as e:
+        print(f"Error reading cleaned CSV: {e}")
+        stats['total_records'] = 0
+    if stats['total_files'] == 0:
+        stats['success_rate'] = 0.0
     else:
-        print("Case:", case_map)
+        stats['success_rate'] = 100.0
+    return stats
+    
+# --- Flask Routes ---
+# (index, upload_file, train_model routes are unchanged)
+@app.route('/')
+def index():
+    stats = get_dashboard_stats()
+    return render_template('index.html', stats=stats)
 
-    print("\n")
-    print("="*50)
-    print("PIPELINE EXECUTION COMPLETE")
-    print("="*50)
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    files = request.files.getlist('file')
+    if not files or files[0].filename == '':
+        flash('No selected files', 'error')
+        return redirect(url_for('index'))
+    processed_files_log = set()
+    try:
+        if os.path.exists(EXCEL_LOG):
+            with open(EXCEL_LOG, "r") as f:
+                processed_files_log = set(line.strip() for line in f.readlines())
+    except Exception as e:
+        print(f"Warning: Could not read log file {EXCEL_LOG}. {e}")
+    new_files_saved = []
+    skipped_files_duplicate = []
+    invalid_type_files = []
+    for file in files:
+        filename = secure_filename(file.filename)
+        if filename == '': continue
+        if not allowed_file(filename):
+            invalid_type_files.append(filename)
+            continue
+        if filename in processed_files_log:
+            skipped_files_duplicate.append(filename)
+            continue
+        try:
+            save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(save_path)
+            new_files_saved.append(filename)
+        except Exception as e:
+            print(f"Error saving file {filename}: {e}")
+            invalid_type_files.append(f"{filename} (Save Error)")
+    pipeline_error = None
+    if new_files_saved:
+        try:
+            print("--- [APP] Running data pipeline ---")
+            pipeline_path = os.path.join(BASE_FOLDER, 'pipeline.py') 
+            proc_env = os.environ.copy()
+            proc_env['PYTHONIOENCODING'] = 'utf-8'
+            result = subprocess.run(
+                [sys.executable, pipeline_path, BASE_FOLDER],
+                capture_output=True, text=True, check=True,
+                encoding='utf-8', env=proc_env
+            )
+            print("--- [APP] Pipeline STDOUT:", result.stdout)
+            print("--- [APP] Pipeline STDERR:", result.stderr)
+            print("--- [APP] Pipeline complete. ---")
+        except subprocess.CalledProcessError as e:
+            print(f"--- [APP] Pipeline failed with code {e.returncode} ---")
+            print("Pipeline STDOUT:", e.stdout)
+            print("Pipeline STDERR:", e.stderr)
+            pipeline_error = f'Data pipeline failed. See console.'
+    if pipeline_error:
+        flash(f'Uploaded {len(new_files_saved)} file(s), but the pipeline failed: {pipeline_error}', 'error')
+    elif new_files_saved:
+        flash(f'Successfully processed {len(new_files_saved)} new file(s). Data is ready for training.', 'success')
+    if skipped_files_duplicate:
+        flash(f'Skipped {len(skipped_files_duplicate)} file(s) (already processed): {", ".join(skipped_files_duplicate)}', 'warning')
+    if invalid_type_files:
+        flash(f'Skipped {len(invalid_type_files)} file(s) (invalid type or save error).', 'warning')
+    if not new_files_saved and not skipped_files_duplicate and not invalid_type_files:
+        flash('No files were selected.', 'error')
+    elif not new_files_saved:
+        flash('No new files to process.', 'info')
+    return redirect(url_for('index'))
 
-# This block ensures the code in main() only runs
-# when you execute this file directly, not when it's imported.
-if __name__ == "__main__":
-    main()
+@app.route('/train', methods=['POST'])
+def train_model():
+    print("--- [APP] Received request to train model ---")
+    try:
+        train_script_path = os.path.join(BASE_FOLDER, 'train_model.py')
+        proc_env = os.environ.copy()
+        proc_env['PYTHONIOENCODING'] = 'utf-8'
+
+        # Run training script
+        result = subprocess.run(
+            [sys.executable, train_script_path, BASE_FOLDER],
+            capture_output=True, text=True, check=True,
+            encoding='utf-8', env=proc_env
+        )
+
+        # Try parsing JSON output from the training script
+        if result.returncode == 0:
+            flash("✅ Model training completed successfully!", "success")
+        else:
+            flash("❌ Model training failed.", "error")
+
+    except subprocess.CalledProcessError as e:
+        print(f"--- [APP] Training script failed with code {e.returncode} ---")
+        print("STDOUT:", e.stdout)
+        print("STDERR:", e.stderr)
+        flash('❌ Model training failed. See server logs for details.', 'error')
+    except Exception as e:
+        print(f"--- [APP] Unexpected error: {e} ---")
+        flash('❌ An unexpected error occurred. Check logs.', 'error')
+
+    return redirect(url_for('index'))
+
+
+# ---------------------------------------------------------------
+# --- DASHBOARD ROUTES ---
+# ---------------------------------------------------------------
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    try:
+        model = joblib.load(MODEL_FILE)
+        data = request.json
+        X_new = pd.DataFrame({
+            "Year": [int(data['year'])],
+            "Month": [int(data['month'])],
+            "Consultation_Type": [int(data['consult_type'])],
+            "Case": [int(data['case_id'])],
+            "Sex": [int(data['sex'])],
+            "Age_range": [int(data['age_range'])]
+        })
+        prediction = model.predict(X_new)
+        return jsonify({'prediction': round(prediction[0], 2)})
+    except FileNotFoundError:
+        return jsonify({'error': f'Model file not found at {MODEL_FILE}. Please train the model first.'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/past_data')
+def api_past_data():
+    try:
+        df = pd.read_csv(CLEANED_CSV)
+        table_data = df.tail(20).to_dict('records')
+        df['Date'] = pd.to_datetime(df['Year'].astype(str) + '-' + df['Month'].astype(str) + '-01')
+        chart_data = df.groupby('Date')['Total'].sum().reset_index()
+        return jsonify({
+            'table': table_data,
+            'chart_data': {
+                'labels': chart_data['Date'].dt.strftime('%Y-%m').tolist(),
+                'data': chart_data['Total'].tolist()
+            }
+        })
+    except FileNotFoundError:
+        return jsonify({'error': f'Data file not found at {CLEANED_CSV}. Please process files first.'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/available_years')
+def api_available_years():
+    try:
+        df = pd.read_csv(CLEANED_CSV)
+        if df.empty:
+            current_year = pd.Timestamp.now().year
+            years = list(range(current_year - 5, current_year + 6))
+        else:
+            min_year = int(df['Year'].min())
+            max_year = int(df['Year'].max())
+            years = list(range(min_year, max_year + 6))
+        return jsonify({'years': sorted(years, reverse=True)})
+    except FileNotFoundError:
+        current_year = pd.Timestamp.now().year
+        years = list(range(current_year - 5, current_year + 6))
+        return jsonify({'years': sorted(years, reverse=True)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# --- NEW API ENDPOINT FOR AGE/CASE ANALYSIS ---
+@app.route('/api/age_case_analysis')
+def api_age_case_analysis():
+    """
+    Analyzes the cleaned data to find the top "Consultation" case (Type 1)
+    for each age range.
+    """
+    try:
+        # --- 1. Load Data ---
+        df = pd.read_csv(CLEANED_CSV)
+        with open(CASE_DICT_FILE, 'r') as f:
+            case_dict = json.load(f)
+        
+        # Invert dictionaries for mapping IDs to Names
+        inv_case_dict = {v: k for k, v in case_dict.items()}
+        
+        # User-provided Age Range Map (inverted)
+        age_map_raw = {
+            "Under 1": 0, "1-4": 1, "5-9": 2, "10-14": 3, "15-18": 4, "19-24": 5,
+            "25-29": 6, "30-34": 7, "35-39": 8, "40-44": 9, "45-49": 10, "50-54": 11,
+            "55-59": 12, "60-64": 13, "65-69": 14, "70": 15, "70 Over": 15, "70 & OVER": 15
+        }
+        # Create a clean inverted map {0: "Under 1", 1: "1-4", ...}
+        inv_age_map = {}
+        # Use a list to preserve the intended order
+        age_order_list = [
+            ("Under 1", 0), ("1-4", 1), ("5-9", 2), ("10-14", 3), ("15-18", 4), ("19-24", 5),
+            ("25-29", 6), ("30-34", 7), ("35-39", 8), ("40-44", 9), ("45-49", 10), ("50-54", 11),
+            ("55-59", 12), ("60-64", 13), ("65-69", 14)
+        ]
+        
+        # Handle the consolidated '70 & Over' group
+        for name, idx in age_map_raw.items():
+            if idx == 15:
+                age_map_raw[name] = 15 # Ensure all '70...' map to 15
+        
+        inv_age_map = {idx: name for name, idx in age_order_list}
+        inv_age_map[15] = "70 & Over" # Standardize "70 & Over"
+        age_order_map = {name: i for i, (name, idx) in enumerate(age_order_list + [("70 & Over", 15)])}
+
+        
+        # --- 2. Perform Analysis ---
+        # Filter for "Consultation" type only
+        df_consult = df[df['Consultation_Type'] == 1].copy()
+        
+        if df_consult.empty:
+            return jsonify([]) # Return empty list if no consultation data
+
+        # Group by Age_range and Case, sum up totals
+        df_grouped = df_consult.groupby(['Age_range', 'Case'])['Total'].sum().reset_index()
+
+        # Find the index of the max 'Total' for each 'Age_range'
+        df_top_cases = df_grouped.loc[df_grouped.groupby('Age_range')['Total'].idxmax()]
+
+        # --- 3. Format Output ---
+        output_data = []
+        for _, row in df_top_cases.iterrows():
+            age_range_name = inv_age_map.get(row['Age_range'], f"Unknown ({row['Age_range']})")
+            case_name = inv_case_dict.get(row['Case'], f"Unknown ({row['Case']})")
+            
+            if age_range_name.startswith("Unknown"): continue # Skip if age range isn't in our map
+
+            output_data.append({
+                "age_range": age_range_name,
+                "top_case": case_name,
+                "total_patients": int(row['Total'])
+            })
+            
+        # Sort by the predefined age_order_map to keep a logical order
+        output_data_sorted = sorted(output_data, key=lambda x: age_order_map.get(x['age_range'], 99))
+
+        return jsonify(output_data_sorted)
+
+    except FileNotFoundError:
+        return jsonify({'error': 'Data or case dictionary file not found. Please process files.'}), 404
+    except Exception as e:
+        print(f"Error in /api/age_case_analysis: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# --- NEW API ENDPOINT FOR FEATURE IMPORTANCE ---
+@app.route('/api/feature_importance')
+def api_feature_importance():
+    """
+    Reads the saved feature importance JSON file and returns it.
+    """
+    importance_file = os.path.join(LOGS_FOLDER, "feature_importance.json")
+    try:
+        with open(importance_file, 'r') as f:
+            data = json.load(f)
+        return jsonify(data)
+    except FileNotFoundError:
+        return jsonify({'error': 'Feature importance file not found. Please train themodel first.'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# --- REVISED /api/top_cases ---
+@app.route('/api/top_cases', methods=['POST'])
+def api_top_cases():
+    """
+    Gets top 10 cases for a selected month, categorized by consultation type,
+    using predictions from the trained Random Forest model.
+    """
+    try:
+        month = int(request.json['month'])
+
+        # === 1. Load data and case dictionary ===
+        df = pd.read_csv(CLEANED_CSV)
+        with open(CASE_DICT_FILE, 'r') as f:
+            case_dict = json.load(f)
+        inv_case_dict_numeric = {v: k for k, v in case_dict.items()}
+
+        # === 2. Check if model file exists ===
+        if not os.path.exists(MODEL_FILE):
+            return jsonify({'error': 'Model file not found. Please train the model first.'}), 500
+
+        # === 3. Load trained model ===
+        model = joblib.load(MODEL_FILE)
+
+        # === 4. Filter by selected month (and create a safe copy) ===
+        df_month = df[df['Month'] == month].copy()
+        if df_month.empty:
+            return jsonify({'error': f'No data found for month {month}.'}), 404
+
+        # === 5. Prepare features for prediction ===
+        features = ["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range"]
+        X_month = df_month[features]
+
+        # === 6. Predict totals using the trained model ===
+        df_month["Predicted_Total"] = model.predict(X_month)
+
+        # === 7. Compare actual vs predicted totals ===
+        actual_total = df_month["Total"].sum()
+        predicted_total = df_month["Predicted_Total"].sum()
+
+        # === 8. Evaluate monthly accuracy ===
+        r2 = r2_score(df_month["Total"], df_month["Predicted_Total"])
+        mae = mean_absolute_error(df_month["Total"], df_month["Predicted_Total"])
+        rmse = np.sqrt(mean_squared_error(df_month["Total"], df_month["Predicted_Total"]))
+
+        # === 9. Get categorized top 10 cases BASED ON PREDICTION ===
+        consultation_data = get_top_10_by_type(df_month, 1, inv_case_dict_numeric, column_to_sum='Predicted_Total')
+        diagnosis_data = get_top_10_by_type(df_month, 2, inv_case_dict_numeric, column_to_sum='Predicted_Total')
+        mortality_data = get_top_10_by_type(df_month, 3, inv_case_dict_numeric, column_to_sum='Predicted_Total')
+
+        # === 10. Return JSON response ===
+        return jsonify({
+            'month': month,
+            'total_summary': {
+                'actual_total': round(float(actual_total), 2),
+                'predicted_total': round(float(predicted_total), 2),
+                'accuracy_metrics': {
+                    'R²': round(r2, 4),
+                    'MAE': round(mae, 4),
+                    'RMSE': round(rmse, 4)
+                }
+            },
+            'consultation': consultation_data,
+            'diagnosis': diagnosis_data,
+            'mortality': mortality_data
+        })
+
+    except FileNotFoundError:
+        return jsonify({'error': 'Data or case dictionary file not found. Please process files.'}), 500
+    except Exception as e:
+        print(f"Error in /api/top_cases: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/api/files')
+def api_files():
+    os.makedirs(INPUT_FOLDER, exist_ok=True)
+    files = [f for f in os.listdir(INPUT_FOLDER) if f.endswith('.xlsx')]
+    return jsonify({'files': files})
+
+@app.route('/api/download/<filename>')
+def api_download(filename):
+    safe_name = secure_filename(filename)
+    file_path = os.path.join(INPUT_FOLDER, safe_name)
+    if os.path.exists(file_path):
+        return send_from_directory(INPUT_FOLDER, safe_name, as_attachment=True)
+    return jsonify({'error': 'File not found'}), 404
+
+
+
+if __name__ == '__main__':
+    app.run(debug=True)

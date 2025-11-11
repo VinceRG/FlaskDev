@@ -13,6 +13,9 @@
     --primary-font: 'Inter', sans-serif;
 }
 
+/* ===========================
+   GLOBAL & LAYOUT
+   ============================ */
 body {
     font-family: var(--primary-font);
     background-color: var(--bg-color);
@@ -26,7 +29,60 @@ body {
     margin: 0 auto;
 }
 
-/* Dashboard Stats */
+hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 24px 0;
+}
+
+/* ===========================
+   HEADER
+   ============================ */
+.header-nav {
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 24px;
+    margin-bottom: 24px;
+}
+
+.header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-container h1 {
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+.header-nav nav {
+    display: flex;
+}
+
+.header-nav .nav-link {
+    padding: 20px 16px;
+    text-decoration: none;
+    color: var(--text-light);
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 3px solid transparent;
+}
+
+.header-nav .nav-link:hover {
+    color: var(--text-color);
+}
+
+.header-nav .nav-link.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+}
+
+/* ===========================
+   DASHBOARD STATS
+   ============================ */
 .dashboard {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -57,7 +113,6 @@ body {
 .stat-icon.orange { background-color: #fff4e8; }
 .stat-icon.red { background-color: #ffeef0; }
 
-
 .stat-info {
     display: flex;
     flex-direction: column;
@@ -81,7 +136,9 @@ body {
     color: var(--text-light);
 }
 
-/* Flash Messages */
+/* ===========================
+   FLASH MESSAGES
+   ============================ */
 .flash-messages {
     margin-bottom: 20px;
 }
@@ -90,6 +147,7 @@ body {
     border-radius: 8px;
     font-weight: 500;
     margin-bottom: 10px;
+    transition: opacity 0.3s ease-out;
 }
 .flash.success {
     background-color: #d4edda;
@@ -107,12 +165,14 @@ body {
     border: 1px solid #ffeeba;
 }
 
-
-/* Main Content */
+/* ===========================
+   MAIN CONTENT & PANELS
+   ============================ */
 .main-content {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+    margin-bottom: 20px; /* Added margin */
 }
 
 .panel {
@@ -134,7 +194,9 @@ body {
     font-size: 1.5rem;
 }
 
-/* Upload Form */
+/* ===========================
+   FORMS & UPLOAD
+   ============================ */
 form label {
     display: block;
     margin-bottom: 8px;
@@ -196,22 +258,25 @@ input[type="text"] {
     background-color: #333;
 }
 
-/* Info Panel */
-.pipeline-steps {
-    padding-left: 20px;
+.btn-train {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background-color: var(--blue); /* A distinct blue color */
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
 }
-.pipeline-steps li {
-    margin-bottom: 12px;
-    line-height: 1.5;
-}
-.pipeline-steps code {
-    background-color: #eee;
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-size: 0.9rem;
+.btn-train:hover {
+    background-color: #0056b3; /* Darker blue on hover */
 }
 
-/* NEW CSS RULES FOR FILE LIST PREVIEW */
+/* ===========================
+   FILE PREVIEW LIST
+   ============================ */
 .file-list-container {
     margin-top: -10px; /* Pulls it closer to the drop area */
     margin-bottom: 20px;
@@ -246,8 +311,26 @@ input[type="text"] {
     word-break: break-all; /* Prevents long file names from overflowing */
 }
 
+/* ===========================
+   PIPELINE INFO PANEL
+   ============================ */
+.pipeline-steps {
+    padding-left: 20px;
+}
+.pipeline-steps li {
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+.pipeline-steps code {
+    background-color: #eee;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
 
-/* NEW CSS FOR LOADING OVERLAY */
+/* ===========================
+   LOADING OVERLAY
+   ============================ */
 #loading-overlay {
     position: fixed; /* Cover the whole screen */
     top: 0;
@@ -286,70 +369,104 @@ input[type="text"] {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-.btn-train {
-    width: 100%;
-    padding: 14px;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #fff;
-    background-color: var(--blue); /* A distinct blue color */
+
+/* ===========================
+   UPLOADED FILES LIST
+   ============================ */
+.uploaded-files {
+    margin-top: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    background-color: #fafafa;
+    min-height: 100px; /* Give it some height */
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.uploaded-file-item {
+    display: flex; /* Use flexbox */
+    justify-content: space-between; /* Space items */
+    align-items: center; /* Center vertically */
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+.uploaded-file-item:last-child {
+    border-bottom: none;
+}
+
+.uploaded-file-item:hover {
+    background-color: #f0f0f0;
+}
+
+.file-name {
+    word-break: break-all; /* Handle long names */
+}
+
+.file-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 16px; /* Space from name */
+}
+
+.file-actions button {
+    background: none;
     border: none;
-    border-radius: 6px;
     cursor: pointer;
+    font-size: 1.1rem;
+    padding: 4px;
+    border-radius: 4px;
     transition: background-color 0.2s;
 }
-.btn-train:hover {
-    background-color: #0056b3; /* Darker blue on hover */
+.file-actions button:hover {
+    background-color: #ddd;
 }
 
-/* Style for the horizontal rule separator */
-hr {
-    border: none;
-    border-top: 1px solid var(--border-color);
-    margin: 24px 0;
-}.header-nav {
-    background-color: var(--panel-bg);
-    border-bottom: 1px solid var(--border-color);
-    padding: 0 24px;
-    margin-bottom: 24px;
-}
-
-.header-container {
-    max-width: 1200px;
-    margin: 0 auto;
+/* ===========================
+   PAGINATION
+   ============================ */
+.pagination {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
+    margin-top: 15px;
+    gap: 6px;
 }
 
-.header-container h1 {
-    font-size: 1.25rem;
-    margin: 0;
+.pagination button {
+    background-color: #e6e6e6;
+    border: none;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--primary-font);
 }
 
-.header-nav nav {
-    display: flex;
+.pagination button:hover:not(:disabled) {
+    background-color: var(--blue);
+    color: white;
 }
 
-.header-nav .nav-link {
-    padding: 20px 16px;
-    text-decoration: none;
-    color: var(--text-light);
-    font-weight: 600;
-    font-size: 0.9rem;
-    border-bottom: 3px solid transparent;
+.pagination button.active {
+    background-color: var(--blue);
+    color: white;
+    font-weight: bold;
 }
 
-.header-nav .nav-link:hover {
-    color: var(--text-color);
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
-.header-nav .nav-link.active {
-    color: var(--blue);
-    border-bottom-color: var(--blue);
-}
-
-/* --- Dashboard Layout --- */
+/* ===========================
+   DASHBOARD PAGE STYLES
+   (For prediction.html)
+   ============================ */
 .dashboard-container {
     display: grid;
     grid-template-columns: 240px 1fr; /* Sidebar | Main Content */
@@ -474,6 +591,7 @@ hr {
     margin-bottom: 24px;
 }
 
+/* --- Table Styles (For Dashboard) --- */
 .table-container {
     max-height: 400px;
     overflow-y: auto;
@@ -504,9 +622,3 @@ hr {
 .table-container tr:last-child td {
     border-bottom: none;
 }
-
-/* Flash message transition */
-.flash {
-    transition: opacity 0.3s ease-out;
-}
-

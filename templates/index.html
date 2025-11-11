@@ -12,25 +12,20 @@
     <div id="loading-overlay">
         <div class="loader-content">
             <div class="spinner"></div>
-            <!-- These texts will be changed by JavaScript -->
             <h2 id="loader-title">Processing...</h2>
             <p id="loader-text">Please do not close this window.</p>
         </div>
     </div>
 
-    <!-- --- NEW SHARED NAVIGATION HEADER --- -->
     <div class="header-nav">
         <div class="header-container">
             <h1>Data Pipeline Dashboard</h1>
             <nav>
-                <!-- Set this link as 'active' -->
                 <a href="{{ url_for('index') }}" class="nav-link active">Upload & Train</a>
                 <a href="{{ url_for('dashboard') }}" class="nav-link">Prediction Dashboard</a>
             </nav>
         </div>
     </div>
-    <!-- --- END OF HEADER --- -->
-
 
     <div class="container">
         <div class="dashboard">
@@ -71,21 +66,18 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
-                {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
-                {% endfor %}
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
                 </div>
             {% endif %}
         {% endwith %}
 
         <div class="main-content">
-            
+
             <div class="panel">
                 <h2><span class="icon">⬆️</span> Upload New Data</h2>
-                
-                <!-- This form now only submits for UPLOAD -->
                 <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" onsubmit="showUploadLoader()">
-                    
                     <label for="file-upload">Select File(s)</label>
                     <div class="file-drop-area">
                         <input type="file" name="file" id="file-upload" required multiple>
@@ -100,40 +92,37 @@
 
                     <label for="description">Data Description (Optional)</label>
                     <input type="text" id="description" name="description" placeholder="e.g., Q4 2025 ER admissions...">
-                    
-                    <!-- Text on this button is changed -->
+
                     <button type="submit" class="btn-upload">Upload & Process Files</button>
                 </form>
             </div>
-            
+
             <div class="panel">
                 <h2><span class="icon">ℹ️</span> Pipeline & Model</h2>
                 <p>This UI triggers your custom Python pipeline and model training scripts.</p>
                 <ol class="pipeline-steps">
-                    <li><b>Upload & Process:</b> Saves <code>.xlsx</code> files and runs the 4-step data pipeline, ending with <code>master_dataset_cleaned.csv</code>.</li>
-                    <li><b>Train Model:</b> This separate step uses the *entire* cleaned dataset to train and save the Random Forest model.</li>
+                    <li><b>Upload & Process:</b> Runs the 4-step data pipeline, ending with <code>master_dataset_cleaned.csv</code>.</li>
+                    <li><b>Train Model:</b> Uses the cleaned dataset to train and save the Random Forest model.</li>
                 </ol>
-
-                <!-- --- NEW SECTION FOR TRAINING --- -->
                 <hr>
                 <h4><span class="icon">🤖</span> Model Training</h4>
-                <p>Click the button below to train the model on the latest 
-                   <code>master_dataset_cleaned.csv</code> file.</p>
-                
+                <p>Click the button below to train the model on the latest dataset.</p>
+
                 <form action="{{ url_for('train_model') }}" method="POST" onsubmit="showTrainLoader()">
                     <button type="submit" class="btn-train">Train New Model</button>
                 </form>
-                <!-- --- END OF NEW SECTION --- -->
-
             </div>
+        </div>
+
+        <div class="panel">
+            <h2><span class="icon">📂</span> Uploaded Files</h2>
+            <div id="uploaded-files-container" class="uploaded-files">
+                </div>
+            <div id="uploaded-files-pagination" class="pagination">
+                </div>
         </div>
     </div>
 
-    <!-- 
-    We now link to the external main.js file
-    and all inline <script> is removed.
-    -->
     <script src="{{ url_for('static', filename='main.js') }}"></script>
-    
 </body>
 </html>

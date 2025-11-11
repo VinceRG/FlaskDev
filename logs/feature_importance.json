@@ -1,0 +1,26 @@
+[
+  {
+    "Feature": "Age_range",
+    "Importance": 1.526
+  },
+  {
+    "Feature": "Case",
+    "Importance": 1.2322
+  },
+  {
+    "Feature": "Consultation_Type",
+    "Importance": 0.203
+  },
+  {
+    "Feature": "Month",
+    "Importance": 0.1964
+  },
+  {
+    "Feature": "Year",
+    "Importance": 0.0406
+  },
+  {
+    "Feature": "Sex",
+    "Importance": 0.0228
+  }
+]
