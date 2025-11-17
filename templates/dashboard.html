@@ -204,6 +204,126 @@
             border-radius: 8px;
             margin-bottom: 24px;
         }
+/* === Resource Needs Card & Table === */
+
+.card {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    margin-top: 1.5rem; /* for .mt-4 */
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(90deg, #f8fafc, #eff6ff);
+}
+
+.card-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-header h3::before {
+    content: "📦";
+    font-size: 1.2rem;
+}
+
+.card-header small.text-danger {
+    font-size: 0.85rem;
+    color: var(--red);
+}
+
+.card-body {
+    padding: 16px 24px 20px;
+}
+
+/* Resource Needs Table */
+
+#resource-needs-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+#resource-needs-table thead th {
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+#resource-needs-table tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+#resource-needs-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+#resource-needs-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Make last column (Status) stand out a bit */
+#resource-needs-table tbody td:last-child {
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+/* Status row highlighting (you already set these classes in JS) */
+tr.OVER_CAPACITY {
+    background-color: #fee2e2; /* soft red */
+}
+
+tr.HIGH_USAGE {
+    background-color: #fef3c7; /* soft yellow */
+}
+
+tr.OK {
+    background-color: #dcfce7; /* soft green */
+}
+
+/* If you want stronger left accent for status rows */
+tr.OVER_CAPACITY td:first-child {
+    border-left: 4px solid var(--red);
+}
+tr.HIGH_USAGE td:first-child {
+    border-left: 4px solid var(--orange);
+}
+tr.OK td:first-child {
+    border-left: 4px solid var(--green);
+}
+
+/* Make the table scroll nicely on small screens */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 12px 16px 16px;
+    }
+
+    #resource-needs-table thead th,
+    #resource-needs-table tbody td {
+        padding: 8px 10px;
+        font-size: 0.85rem;
+    }
+}
 
         /* Form Styles (Kept for Top 10 Cases filter) */
         .form-group {
@@ -460,6 +580,19 @@
                         <table id="top-cases-table-mortality"></table>
                     </div>
                 </div>
+
+                <div class="card mt-4">
+                <div class="card-header">
+                    <h3>Resource Needs (Based on Predicted Top 10 Cases)</h3>
+                    <small id="resource-error" class="text-danger"></small>
+                </div>
+                <div class="card-body">
+                    <table id="resource-needs-table" class="table table-sm table-striped">
+                    <!-- Filled by updateResourceTable() -->
+                    </table>
+                </div>
+                </div>
+
             </div>
 
             <!-- === MODIFIED PAGE CONTENT FOR MODEL INSIGHTS === -->
@@ -605,8 +738,62 @@
             }
 
             // --- 2. Top Cases Logic ---
-            const monthSelect = document.getElementById('topCasesMonthSelect');
-            monthSelect.addEventListener('change', loadTopCases);
+           const monthSelect = document.getElementById('topCasesMonthSelect');
+monthSelect.addEventListener('change', () => {
+    loadTopCases();
+    loadResourceNeeds();   // NEW
+});
+
+async function loadResourceNeeds() {
+    const month = monthSelect.value;
+    try {
+        const response = await fetch('/api/resource_needs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month: parseInt(month) })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to fetch resource needs.');
+        }
+        const data = await response.json();
+        hideError('resource-error');
+        updateResourceTable(data.resources);
+    } catch (error) {
+        console.error('Error loading resource needs:', error);
+        showError('resource-error', error.message);
+    }
+}
+
+function updateResourceTable(resources) {
+    const table = document.getElementById('resource-needs-table');
+    if (!table) return;
+
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th>Resource</th>
+                <th>Predicted Monthly Demand</th>
+                <th>Monthly Capacity</th>
+                <th>Utilization</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${resources.map(r => `
+                <tr class="${r.status}">
+                    <td>${r.resource_name}</td>
+                    <td>${r.predicted_monthly_demand} ${r.unit}</td>
+                    <td>${r.monthly_capacity} ${r.unit}</td>
+                    <td>${r.utilization !== null ? (r.utilization * 100).toFixed(1) + '%' : 'N/A'}</td>
+                    <td>${r.status}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    `;
+}
+
+
 
             async function loadTopCases() {
                 const month = monthSelect.value;

@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Load data for the activated page
                     if (pageId === 'past-data') loadPastData();
-                    if (pageId === 'top-cases') loadTopCases();
+                    if (pageId === 'top-cases') loadTopCases();       
                     if (pageId === 'model-insights') loadModelInsights();
                 });
             });
@@ -83,38 +83,95 @@ document.addEventListener('DOMContentLoaded', () => {
                     showError('past-data-error', error.message);
                 }
             }
+// --- 2. Top Cases Logic ---
+const monthSelect = document.getElementById('topCasesMonthSelect');
+monthSelect.addEventListener('change', () => {
+    // When month changes, refresh Top Cases + Resource Needs
+    loadTopCases();
+});
 
-            // --- 2. Top Cases Logic ---
-            const monthSelect = document.getElementById('topCasesMonthSelect');
-            monthSelect.addEventListener('change', loadTopCases);
+async function loadResourceNeeds(month) {
+    // If no month passed, fall back to the current select value
+    const selectedMonth = month ?? monthSelect.value;
 
-            async function loadTopCases() {
-                const month = monthSelect.value;
-                try {
-                    const response = await fetch('/api/top_cases', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ month: parseInt(month) })
-                    });
-                    if (!response.ok) {
-                        const err = await response.json();
-                        throw new Error(err.error || 'Failed to fetch top cases data.');
-                    }
-                    const data = await response.json();
-                    hideError('top-cases-error');
+    try {
+        const response = await fetch('/api/resource_needs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month: parseInt(selectedMonth) })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to fetch resource needs.');
+        }
+        const data = await response.json();
+        hideError('resource-error');
+        updateResourceTable(data.resources);
+    } catch (error) {
+        console.error('Error loading resource needs:', error);
+        showError('resource-error', error.message);
+    }
+}
 
-                    // Update Consultation
-                    updateTopCaseSection('consultation', data.consultation);
-                    // Update Diagnosis
-                    updateTopCaseSection('diagnosis', data.diagnosis);
-                    // Update Mortality
-                    updateTopCaseSection('mortality', data.mortality);
+function updateResourceTable(resources) {
+    const table = document.getElementById('resource-needs-table');
+    if (!table) return;
 
-                } catch (error) {
-                    console.error('Error loading top cases:', error);
-                    showError('top-cases-error', error.message);
-                }
-            }
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th>Resource</th>
+                <th>Predicted Monthly Demand</th>
+                <th>Monthly Capacity</th>
+                <th>Utilization</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${resources.map(r => `
+                <tr class="${r.status}">
+                    <td>${r.resource_name}</td>
+                    <td>${r.predicted_monthly_demand} ${r.unit}</td>
+                    <td>${r.monthly_capacity} ${r.unit}</td>
+                    <td>${r.utilization !== null ? (r.utilization * 100).toFixed(1) + '%' : 'N/A'}</td>
+                    <td>${r.status}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    `;
+}
+
+async function loadTopCases() {
+    const month = monthSelect.value;
+
+    try {
+        const response = await fetch('/api/top_cases', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month: parseInt(month) })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || 'Failed to fetch top cases data.');
+        }
+        const data = await response.json();
+        hideError('top-cases-error');
+
+        // Update Consultation
+        updateTopCaseSection('consultation', data.consultation);
+        // Update Diagnosis
+        updateTopCaseSection('diagnosis', data.diagnosis);
+        // Update Mortality
+        updateTopCaseSection('mortality', data.mortality);
+
+        // 🔁 ALWAYS load resource needs for the same month right after top cases
+        await loadResourceNeeds(month);
+
+    } catch (error) {
+        console.error('Error loading top cases:', error);
+        showError('top-cases-error', error.message);
+    }
+}
 
             function updateTopCaseSection(type, data) {
                 // Update Chart
