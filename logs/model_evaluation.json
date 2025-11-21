@@ -1,39 +1,133 @@
 {
   "data_load": "\u2705 Loaded dataset (20032 rows)",
-  "data_split": "Train: 16025 rows | Test: 4007 rows",
+  "monthly_case_rows": "\u2705 Aggregated to Year-Month-Consultation_Type-Case level (626 rows)",
+  "data_split": "Train: 500 rows | Test: 126 rows (aggregated monthly-per-case)",
   "evaluation": {
-    "R\u00b2 Score": 0.8648,
-    "MAE": 1.2675,
-    "MSE": 8.282,
-    "RMSE": 2.8779
+    "R\u00b2 Score": 0.8317,
+    "MAE": 21.7502,
+    "MSE": 2653.6165,
+    "RMSE": 51.5133
   },
-  "feature_importance_saved": "\u2705 Feature importance saved to D:\\FlaskDev\\logs\\feature_importance.json",
+  "feature_importance_saved": "\u2705 Feature importance saved to D:\\PCCH_SE\\FlaskDev\\logs\\feature_importance.json",
+  "monthly_case_summary_saved": "\u2705 Monthly per-case summary saved to D:\\PCCH_SE\\FlaskDev\\logs\\monthly_case_summary.csv",
   "summary_table_tail": [
     {
       "Date": "2024-08",
       "Actual_Total_Patients": 2637,
-      "Predicted_Total_Patients": 2720
+      "Predicted_Total_Patients": 2578
     },
     {
       "Date": "2024-09",
       "Actual_Total_Patients": 2606,
-      "Predicted_Total_Patients": 2708
+      "Predicted_Total_Patients": 2732
     },
     {
       "Date": "2024-10",
       "Actual_Total_Patients": 3491,
-      "Predicted_Total_Patients": 3454
+      "Predicted_Total_Patients": 3443
     },
     {
       "Date": "2024-11",
       "Actual_Total_Patients": 3524,
-      "Predicted_Total_Patients": 3470
+      "Predicted_Total_Patients": 3353
     },
     {
       "Date": "2024-12",
       "Actual_Total_Patients": 3400,
-      "Predicted_Total_Patients": 3384
+      "Predicted_Total_Patients": 3432
     }
   ],
-  "model_saved": "\u2705 Model saved to D:\\FlaskDev\\logs\\random_forest_model.pkl"
+  "month_case_tail": [
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 22,
+      "Total_Patients": 3,
+      "Predicted": 3,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 51,
+      "Total_Patients": 6,
+      "Predicted": 5,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 63,
+      "Total_Patients": 10,
+      "Predicted": 9,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 64,
+      "Total_Patients": 2,
+      "Predicted": 3,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 76,
+      "Total_Patients": 1,
+      "Predicted": 1,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 77,
+      "Total_Patients": 1,
+      "Predicted": 1,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 78,
+      "Total_Patients": 1,
+      "Predicted": 1,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 79,
+      "Total_Patients": 1,
+      "Predicted": 1,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 80,
+      "Total_Patients": 1,
+      "Predicted": 1,
+      "Date": "2024-12"
+    },
+    {
+      "Year": 2024,
+      "Month": 12,
+      "Consultation_Type": 3,
+      "Case": 81,
+      "Total_Patients": 1,
+      "Predicted": 1,
+      "Date": "2024-12"
+    }
+  ],
+  "model_saved": "\u2705 Model saved to D:\\PCCH_SE\\FlaskDev\\logs\\random_forest_model.pkl"
 }

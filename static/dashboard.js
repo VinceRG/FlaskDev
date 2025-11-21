@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 mortality: null,
                 featureImportance: null
             };
+            let latestPredictedVisits = null;
+
 
             // --- Sidebar Navigation Logic ---
             const sidebarButtons = document.querySelectorAll('.nav-button');
@@ -33,6 +35,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (pageId === 'past-data') loadPastData();
                     if (pageId === 'top-cases') loadTopCases();       
                     if (pageId === 'model-insights') loadModelInsights();
+                    if (pageId === 'resource-management') {
+    const month = parseInt(resourceMonthSelect.value, 10) || 1;
+    loadResourceForMonth(month);
+}
+
                 });
             });
 
@@ -85,56 +92,64 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 // --- 2. Top Cases Logic ---
 const monthSelect = document.getElementById('topCasesMonthSelect');
+const resourceMonthSelect = document.getElementById('resourceMonthSelect');
 monthSelect.addEventListener('change', () => {
     // When month changes, refresh Top Cases + Resource Needs
     loadTopCases();
 });
 
-async function loadResourceNeeds(month) {
-    // If no month passed, fall back to the current select value
-    const selectedMonth = month ?? monthSelect.value;
+resourceMonthSelect.addEventListener('change', () => {
+    const month = parseInt(resourceMonthSelect.value, 10);
+    loadResourceForMonth(month);
+});
 
-    try {
-        const response = await fetch('/api/resource_needs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ month: parseInt(selectedMonth) })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Failed to fetch resource needs.');
-        }
-        const data = await response.json();
-        hideError('resource-error');
-        updateResourceTable(data.resources);
-    } catch (error) {
-        console.error('Error loading resource needs:', error);
-        showError('resource-error', error.message);
-    }
-}
+
 
 function updateResourceTable(resources) {
     const table = document.getElementById('resource-needs-table');
     if (!table) return;
 
+    if (!resources || !resources.length) {
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Resource</th>
+                    <th>Monthly Demand</th>
+                    <th>Monthly Capacity</th>
+                    <th>Utilization (%)</th>
+                    <th>Status</th>
+                    <th>Shortage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="6" style="text-align:center;">No resource data available.</td>
+                </tr>
+            </tbody>
+        `;
+        return;
+    }
+
     table.innerHTML = `
         <thead>
             <tr>
                 <th>Resource</th>
-                <th>Predicted Monthly Demand</th>
+                <th>Monthly Demand</th>
                 <th>Monthly Capacity</th>
-                <th>Utilization</th>
+                <th>Utilization (%)</th>
                 <th>Status</th>
+                <th>Shortage</th>
             </tr>
         </thead>
         <tbody>
             ${resources.map(r => `
                 <tr class="${r.status}">
                     <td>${r.resource_name}</td>
-                    <td>${r.predicted_monthly_demand} ${r.unit}</td>
-                    <td>${r.monthly_capacity} ${r.unit}</td>
-                    <td>${r.utilization !== null ? (r.utilization * 100).toFixed(1) + '%' : 'N/A'}</td>
+                    <td>${r.monthly_demand} ${r.unit || ''}</td>
+                    <td>${r.monthly_capacity} ${r.unit || ''}</td>
+                    <td>${r.utilization.toFixed ? r.utilization.toFixed(1) : r.utilization}</td>
                     <td>${r.status}</td>
+                    <td>${r.shortage} ${r.unit || ''}</td>
                 </tr>
             `).join('')}
         </tbody>
@@ -143,8 +158,8 @@ function updateResourceTable(resources) {
 
 async function loadTopCases() {
     const month = monthSelect.value;
-
     try {
+        hideError('top-cases-error');
         const response = await fetch('/api/top_cases', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -155,23 +170,88 @@ async function loadTopCases() {
             throw new Error(err.error || 'Failed to fetch top cases data.');
         }
         const data = await response.json();
-        hideError('top-cases-error');
 
-        // Update Consultation
+        // 🔹 1) Save predicted visits from the backend
+        latestPredictedVisits = data.total_summary && data.total_summary.predicted_total
+            ? data.total_summary.predicted_total
+            : null;
+
+        // 🔹 2) Update Consultation / Diagnosis / Mortality sections
         updateTopCaseSection('consultation', data.consultation);
-        // Update Diagnosis
         updateTopCaseSection('diagnosis', data.diagnosis);
-        // Update Mortality
         updateTopCaseSection('mortality', data.mortality);
 
-        // 🔁 ALWAYS load resource needs for the same month right after top cases
-        await loadResourceNeeds(month);
+// 🔹 3) Also refresh Resource Management for the same month (optional)
+const monthInt = parseInt(monthSelect.value, 10);
+if (!isNaN(monthInt)) {
+    loadResourceForMonth(monthInt);
+}
+
 
     } catch (error) {
         console.error('Error loading top cases:', error);
         showError('top-cases-error', error.message);
     }
 }
+
+    async function loadResourceForMonth(month) {
+        try {
+            hideError('resource-error');
+            const summaryLabel = document.getElementById('resource-summary');
+            if (summaryLabel) {
+                summaryLabel.textContent = 'Loading predicted volume and resource needs...';
+            }
+
+            // --- Step 1: get predicted_total for this month ---
+            const topCasesRes = await fetch('/api/top_cases', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ month: month })
+            });
+
+            const topCasesData = await topCasesRes.json();
+            if (!topCasesRes.ok || topCasesData.error) {
+                throw new Error(topCasesData.error || 'Failed to fetch top cases data for resources.');
+            }
+
+            const predictedTotal = topCasesData.total_summary?.predicted_total || 0;
+            latestPredictedVisits = predictedTotal;
+
+            if (!predictedTotal || predictedTotal <= 0) {
+                throw new Error('No predicted volume available for this month.');
+            }
+
+            if (summaryLabel) {
+                summaryLabel.textContent =
+                    `Predicted patient volume for this month: ${Math.round(predictedTotal).toLocaleString()} visits.`;
+            }
+
+            // --- Step 2: call resource_needs using that predictedTotal ---
+            const resNeedsRes = await fetch('/api/resource_needs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    predicted_visits: predictedTotal,
+                    general_factor: 1.0,
+                    nurses_per_shift: 7
+                })
+            });
+
+            const resNeedsData = await resNeedsRes.json();
+            if (!resNeedsRes.ok || resNeedsData.error) {
+                throw new Error(resNeedsData.error || 'Failed to fetch resource needs.');
+            }
+
+            updateResourceTable(resNeedsData.resources);
+
+        } catch (error) {
+            console.error('Error loading resources for month:', error);
+            showError('resource-error', error.message);
+            const summaryLabel = document.getElementById('resource-summary');
+            if (summaryLabel) summaryLabel.textContent = '';
+            updateResourceTable([]); // clear table on error
+        }
+    }
 
             function updateTopCaseSection(type, data) {
                 // Update Chart
