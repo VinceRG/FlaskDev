@@ -22,6 +22,8 @@ CLEANED_CSV = os.path.join(PROCESSED_FOLDER, "master_dataset_cleaned.csv")
 EXCEL_LOG = os.path.join(LOGS_FOLDER, "converted_files.txt")
 MODEL_FILE = os.path.join(LOGS_FOLDER, "random_forest_model.pkl") 
 CASE_DICT_FILE = os.path.join(LOGS_FOLDER, "case_dictionary.json") 
+MONTH_CASE_SUMMARY_FILE = os.path.join(LOGS_FOLDER, "monthly_case_summary.csv")
+
 ALLOWED_EXTENSIONS = {'xlsx'}
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = INPUT_FOLDER
@@ -29,433 +31,451 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.secret_key = 'your-secret-key-goes-here' 
 
 # --- RESOURCE CONFIG ---
-SHIFTS_PER_DAY = 2  # adjust if you use 2 shifts/day
+SHIFTS_PER_DAY = 2          # Morning + night
+NURSES_PER_SHIFT = 7        # 7 nurses per shift
+DAYS_PER_MONTH = 30         # Avg days in a month
 
-NURSES_PER_SHIFT = 7        # you said 7 nurses per shift on average
-
-# Per-shift capacities & counts
 RESOURCE_INVENTORY = {
-    # ======================
-    # CONSUMABLES – PER SHIFT
-    # ======================
-    "syringe_small": {  # 1cc / 3cc / 5cc / 10cc
-        "display_name": "Syringes 1/3/5/10cc",
+    # -----------------------------
+    # CONSUMABLES (per shift capacity)
+    # -----------------------------
+    "Temperature Probe Cover": {
         "unit": "pcs",
-        "capacity_per_shift": 100,    # 100 per shift
-        "type": "consumable"
+        "type": "consumable",
+        # assume 120 probe covers available per shift
+        "capacity_per_shift": 120
     },
-    "syringe_large": {  # 20cc / 50cc
-        "display_name": "Syringes 20/50cc",
+    "BP Cuff Disposable Cover": {
         "unit": "pcs",
-        "capacity_per_shift": 20,     # 20 per shift
-        "type": "consumable"
+        "type": "consumable",
+        "capacity_per_shift": 120
     },
-    "macroset": {
-        "display_name": "Macroset",
-        "unit": "sets",
-        "capacity_per_shift": 50,     # 50 per shift
-        "type": "consumable"
-    },
-    "microset": {
-        "display_name": "Microset",
-        "unit": "sets",
-        "capacity_per_shift": 50,     # 50 per shift
-        "type": "consumable"
-    },
-    "oxygen_cannula_mask": {
-        "display_name": "Oxygen cannula/mask",
+    "Stethoscope Earpiece Cover": {
         "unit": "pcs",
-        "capacity_per_shift": 50,     # 50 per shift
-        "type": "consumable"
+        "type": "consumable",
+        "capacity_per_shift": 120
     },
-    "soluset": {
-        "display_name": "Soluset",
-        "unit": "sets",
-        "capacity_per_shift": 50,     # 50 per shift
-        "type": "consumable"
-    },
-    "nebulizer_kit": {
-        "display_name": "Nebulizer kit",
-        "unit": "kits",
-        "capacity_per_shift": 50,     # 50 per shift
-        "type": "consumable"
-    },
-    "iv_cannula_20g": {
-        "display_name": "IV cannula G20",
-        "unit": "pcs",
-        "capacity_per_shift": 100,    # 100 per shift
-        "type": "consumable"
-    },
-    "iv_cannula_22g": {
-        "display_name": "IV cannula G22",
-        "unit": "pcs",
-        "capacity_per_shift": 100,    # 100 per shift
-        "type": "consumable"
-    },
-    "iv_cannula_24g": {
-        "display_name": "IV cannula G24",
-        "unit": "pcs",
-        "capacity_per_shift": 100,    # 100 per shift
-        "type": "consumable"
-    },
-    "iv_cannula_26g": {
-        "display_name": "IV cannula G26",
-        "unit": "pcs",
-        "capacity_per_shift": 100,    # 100 per shift
-        "type": "consumable"
-    },
-    "hgt_strips": {
-        "display_name": "HGT strips",
+    "HGT Strips": {
         "unit": "strips",
-        "capacity_per_shift": 100,    # 100 per shift
-        "type": "consumable"
+        "type": "consumable",
+        # from reference: 100 strips/shift
+        "capacity_per_shift": 100
     },
-    "sterile_gloves": {
-        "display_name": "Sterile gloves (pairs, all sizes)",
-        "unit": "pairs",
-        "capacity_per_shift": 10 * 4,  # 10 per size; assume 4 sizes ≈ 40 pairs/shift
-        "type": "consumable"
+    "Nebulizer Kit": {
+        "unit": "kits",
+        "type": "consumable",
+        # from reference: 50/shift
+        "capacity_per_shift": 50
     },
-
-    # ======================
-    # CONSUMABLES – PER NURSE
-    # ======================
-    "n95_mask": {
-        "display_name": "N95 mask",
+    "Oxygen Mask": {
         "unit": "pcs",
-        # 1 per nurse per shift → 7 nurses ≈ 7 per shift
-        "capacity_per_shift": NURSES_PER_SHIFT * 1,
-        "type": "consumable_per_nurse"
+        "type": "consumable",
+        # Oxygen cannula/mask: 50/shift
+        "capacity_per_shift": 50
     },
-    "gown": {
-        "display_name": "Gown",
+    "Nebulizer Mask": {
         "unit": "pcs",
-        # 1 per nurse per shift → 7 nurses ≈ 7 per shift
-        "capacity_per_shift": NURSES_PER_SHIFT * 1,
-        "type": "consumable_per_nurse"
+        "type": "consumable",
+        # align with Nebulizer kit
+        "capacity_per_shift": 50
     },
-
-    # ======================
-    # FIXED SUPPLIES (TREATED AS EQUIPMENT CAPACITY)
-    # ======================
-    "stretcher": {
-        "display_name": "Stretchers",
-        "unit": "units",
-        "capacity_per_shift": 15,     # total available
-        "type": "equipment"
+    "Micropore Tape": {
+        "unit": "rolls",
+        "type": "consumable",
+        # not specified; set modest stock per shift
+        "capacity_per_shift": 10
     },
-    "crib": {
-        "display_name": "Crib",
-        "unit": "units",
-        "capacity_per_shift": 1,
-        "type": "equipment"
+    "IV Cannula": {
+        "unit": "pcs",
+        "type": "consumable",
+        # 100 each for 20/22/24/26 → ~400/shift
+        "capacity_per_shift": 400
     },
-    "wheelchair": {
-        "display_name": "Wheelchair",
-        "unit": "units",
-        "capacity_per_shift": 4,
-        "type": "equipment"
+    "Syringe": {
+        "unit": "pcs",
+        "type": "consumable",
+        # 1/3/5/10cc 100/shift + 20/50cc 20/shift ≈ 120
+        "capacity_per_shift": 120
     },
-    "bassinet": {
-        "display_name": "Bassinet",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-
-    # ======================
-    # EQUIPMENT (CAPACITY-BASED, NOT CONSUMED)
-    # ======================
-    "cardiac_monitor_wall": {
-        "display_name": "Cardiac monitor (wall)",
-        "unit": "units",
-        "capacity_per_shift": 8,
-        "type": "equipment"
-    },
-    "cardiac_monitor_portable": {
-        "display_name": "Cardiac monitor (portable)",
-        "unit": "units",
-        "capacity_per_shift": 7,
-        "type": "equipment"
-    },
-    "suction_wall": {
-        "display_name": "Wall suction",
-        "unit": "units",
-        "capacity_per_shift": 8,
-        "type": "equipment"
-    },
-    "suction_portable": {
-        "display_name": "Portable suction",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "ecg_machine": {
-        "display_name": "ECG machine",
-        "unit": "units",
-        "capacity_per_shift": 1,
-        "type": "equipment"
-    },
-    "nebulizer_machine": {
-        "display_name": "Nebulizer machine",
-        "unit": "units",
-        "capacity_per_shift": 4,
-        "type": "equipment"
-    },
-    "bp_apparatus": {
-        "display_name": "BP apparatus (standalone)",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "pulse_oximeter_portable": {
-        "display_name": "Pulse oximeter (portable)",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "thermometer": {
-        "display_name": "Thermometer",
-        "unit": "units",
-        "capacity_per_shift": 5,
-        "type": "equipment"
-    },
-    "defibrillator": {
-        "display_name": "Defibrillator",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "oxygen_tank": {
-        "display_name": "O₂ tank with gauge",
-        "unit": "units",
-        "capacity_per_shift": 15,
-        "type": "equipment"
-    },
-    "infusion_pump": {
-        "display_name": "Infusion pump",
-        "unit": "units",
-        "capacity_per_shift": 5,
-        "type": "equipment"
-    },
-    "spine_board": {
-        "display_name": "Spine board",
-        "unit": "units",
-        "capacity_per_shift": 1,
-        "type": "equipment"
-    },
-    "cervical_collar": {
-        "display_name": "Cervical collar",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "glucose_monitor": {
-        "display_name": "Glucose monitor",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "crash_cart": {
-        "display_name": "Crash cart",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "mayo_table": {
-        "display_name": "Mayo table",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "ambu_bag_mask": {
-        "display_name": "Ambu bag mask",
-        "unit": "units",
-        "capacity_per_shift": 2,
-        "type": "equipment"
-    },
-    "intubation_set": {
-        "display_name": "Intubation set",
+    "Soluset": {
         "unit": "sets",
-        "capacity_per_shift": 4,
-        "type": "equipment"
+        "type": "consumable",
+        # 50/shift
+        "capacity_per_shift": 50
     },
+    "Microset": {
+        "unit": "sets",
+        "type": "consumable",
+        # 50/shift
+        "capacity_per_shift": 50
+    },
+    "Macroset": {
+        "unit": "sets",
+        "type": "consumable",
+        # 50/shift
+        "capacity_per_shift": 50
+    },
+
+    # (optional) extra consumables from your list
+    "Elastic Bandage": {
+        "unit": "pcs",
+        "type": "consumable",
+        "capacity_per_shift": 5
+    },
+    "Arm Sling": {
+        "unit": "pcs",
+        "type": "consumable",
+        "capacity_per_shift": 5
+    },
+    "Sterile Gloves": {
+        "unit": "pairs",
+        "type": "consumable",
+        # 10/size/shift → simplify to total ~30 pairs
+        "capacity_per_shift": 30
+    },
+
+    # -----------------------------
+    # EQUIPMENT (concurrent capacity)
+    # -----------------------------
+    "Cardiac Monitor": {
+        "unit": "units",
+        "type": "equipment",
+        # 8 wall-mount + 7 portable = 15
+        "capacity_per_shift": 15
+    },
+    "Oxygen Tank": {
+        "unit": "units",
+        "type": "equipment",
+        # 15 tanks with gauge
+        "capacity_per_shift": 15
+    },
+    "Infusion Pump": {
+        "unit": "units",
+        "type": "equipment",
+        # 5 infusion pumps
+        "capacity_per_shift": 5
+    },
+    "Portable Suction Machine": {
+        "unit": "units",
+        "type": "equipment",
+        # 8 wall-mount + 2 portable = 10 suction points
+        "capacity_per_shift": 10
+    },
+    "ECG Machine": {
+        "unit": "units",
+        "type": "equipment",
+        # 1 ECG machine
+        "capacity_per_shift": 1
+    },
+    "Fetal Doppler": {
+        "unit": "units",
+        "type": "equipment",
+        # 1 Doppler
+        "capacity_per_shift": 1
+    },
+    "Gloves (Bedside)": {
+        "unit": "boxes",
+        "type": "equipment",
+        # bedside boxes at stations; assume 10 boxes/shift
+        "capacity_per_shift": 10
+    },
+    "Pulse Oximeter": {
+        "unit": "units",
+        "type": "equipment",
+        # 2 portable pulse oximeters
+        "capacity_per_shift": 2
+    },
+    "Nebulizer Machine": {
+        "unit": "units",
+        "type": "equipment",
+        # 4 nebulizers
+        "capacity_per_shift": 4
+    },
+    "Thermometer": {
+        "unit": "units",
+        "type": "equipment",
+        # 5 thermometers
+        "capacity_per_shift": 5
+    },
+    "Defibrillator": {
+        "unit": "units",
+        "type": "equipment",
+        # 2 defibs
+        "capacity_per_shift": 2
+    },
+    "Glucose Monitor": {
+        "unit": "units",
+        "type": "equipment",
+        # 2 HGT machines
+        "capacity_per_shift": 2
+    },
+
+    # -----------------------------
+    # PER-NURSE CONSUMABLES
+    # -----------------------------
+    "Gown": {
+        "unit": "pcs",
+        "type": "consumable_per_nurse",
+        # 1 gown per nurse per shift → 7
+        "capacity_per_shift": 7
+    },
+    "N95 Mask": {
+        "unit": "pcs",
+        "type": "consumable_per_nurse",
+        # 1 N95 per nurse per shift
+        "capacity_per_shift": 7
+    },
+
+    # -----------------------------
+    # FIXED SUPPLIES
+    # -----------------------------
+    "Stretcher": {
+        "unit": "units",
+        "type": "fixed",
+        # 15 stretchers
+        "total_available": 15
+    },
+    "Wheelchair": {
+        "unit": "units",
+        "type": "fixed",
+        # 4 wheelchairs
+        "total_available": 4
+    },
+    "Bassinet": {
+        "unit": "units",
+        "type": "fixed",
+        # 2 bassinets
+        "total_available": 2
+    },
+    "Crib": {
+        "unit": "units",
+        "type": "fixed",
+        # 1 crib
+        "total_available": 1
+    },
+    "Spine Board": {
+        "unit": "units",
+        "type": "fixed",
+        "total_available": 1
+    },
+    "Cervical Collar": {
+        "unit": "units",
+        "type": "fixed",
+        "total_available": 2
+    },
+    "Crash Cart": {
+        "unit": "units",
+        "type": "fixed",
+        "total_available": 2
+    },
+    "Mayo Table": {
+        "unit": "units",
+        "type": "fixed",
+        "total_available": 2
+    },
+    "Ambu Bag Mask": {
+        "unit": "units",
+        "type": "fixed",
+        "total_available": 2
+    },
+    "Intubation Set": {
+        "unit": "sets",
+        "type": "fixed",
+        "total_available": 4
+    }
 }
 
-# Average resource use per patient for key diagnoses
-# Keys MUST match the case names in your case_dictionary.json
 
-CASE_RESOURCE_USAGE = {
-    # --- Simple OPD-style cases ---
-    "FEVER": {
-        "sterile_gloves": 0.5,
-        "hgt_strips": 0.3,
-        "thermometer": 0.05
+GENERAL_RESOURCE_USAGE = {
+    # -----------------------------
+    # Consumables (units per patient visit)
+    # -----------------------------
+    "Temperature Probe Cover": {
+        "type": "consumable",
+        "avg_use": 1.0   # almost every patient
     },
-    "COUGH": {
-        "sterile_gloves": 0.5,
-        "nebulizer_kit": 0.2,
-        "nebulizer_machine": 0.1,
-        "oxygen_cannula_mask": 0.05
+    "BP Cuff Disposable Cover": {
+        "type": "consumable",
+        "avg_use": 1.0
     },
-    "COUGH AND COLDS": {
-        "sterile_gloves": 0.5,
-        "nebulizer_kit": 0.2,
-        "nebulizer_machine": 0.1
+    "Stethoscope Earpiece Cover": {
+        "type": "consumable",
+        "avg_use": 1.0
     },
-    "URTI": {
-        "sterile_gloves": 0.5,
-        "nebulizer_kit": 0.2,
-        "nebulizer_machine": 0.1
+    "HGT Strips": {
+        "type": "consumable",
+        # not every patient; approx 30%
+        "avg_use": 0.3
     },
-
-    # --- GI / dehydration cases ---
-    "VOMITING": {
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.5,
-        "macroset": 0.3,
-        "microset": 0.3,
-        "hgt_strips": 0.5
+    "Nebulizer Kit": {
+        "type": "consumable",
+        # maybe 15–20% of ER patients need neb
+        "avg_use": 0.18
     },
-    "LBM": {
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.5,
-        "macroset": 0.3,
-        "microset": 0.3,
-        "hgt_strips": 0.5
+    "Oxygen Mask": {
+        "type": "consumable",
+        # 10–15% need oxygen
+        "avg_use": 0.12
     },
-    "AGE": {  # your case 11
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.8,
-        "macroset": 0.5,
-        "microset": 0.5,
-        "soluset": 0.5,
-        "hgt_strips": 0.8
+    "Nebulizer Mask": {
+        "type": "consumable",
+        "avg_use": 0.18
     },
-    "ACUTE GASTROENTERITIS": {  # 46
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.8,
-        "macroset": 0.5,
-        "microset": 0.5,
-        "soluset": 0.5,
-        "hgt_strips": 0.8
+    "Micropore Tape": {
+        "type": "consumable",
+        # fraction of a roll per patient on average
+        "avg_use": 0.05
     },
-    "ABDOMINAL PAIN": {
-        "sterile_gloves": 1.0,
-        "hgt_strips": 0.3
+    "IV Cannula": {
+        "type": "consumable",
+        # maybe 30% of ER visits need IV access
+        "avg_use": 0.3
     },
-    "ACUTE GASTRITIS": {
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.4,
-        "hgt_strips": 0.3
+    "Syringe": {
+        "type": "consumable",
+        # around 1 syringe per patient on average
+        "avg_use": 1.0
     },
-
-    # --- UTI ---
-    "UTI": {
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.5,
-        "hgt_strips": 0.4
+    "Soluset": {
+        "type": "consumable",
+        "avg_use": 0.10
     },
-    "URINARY TRACT INFECTION": {
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 0.5,
-        "hgt_strips": 0.4
+    "Microset": {
+        "type": "consumable",
+        "avg_use": 0.10
+    },
+    "Macroset": {
+        "type": "consumable",
+        "avg_use": 0.12
+    },
+    "Elastic Bandage": {
+        "type": "consumable",
+        "avg_use": 0.02
+    },
+    "Arm Sling": {
+        "type": "consumable",
+        "avg_use": 0.02
+    },
+    "Sterile Gloves": {
+        "type": "consumable",
+        # used for procedures; small subset of patients
+        "avg_use": 0.05
     },
 
-    # --- Respiratory / pneumonia / SOB ---
-    "SOB": {
-        "sterile_gloves": 1.0,
-        "nebulizer_kit": 0.5,
-        "nebulizer_machine": 0.3,
-        "oxygen_cannula_mask": 0.6,
-        "cardiac_monitor_portable": 0.3,
-        "pulse_oximeter_portable": 0.4
+    # -----------------------------
+    # Equipment (concurrent usage rate per patient)
+    # -----------------------------
+    "Cardiac Monitor": {
+        "type": "equipment",
+        # about 5% of patients on monitor at any given time
+        "avg_use": 0.05
     },
-    "PNEUMONIA": {
-        "sterile_gloves": 1.0,
-        "nebulizer_kit": 0.7,
-        "nebulizer_machine": 0.4,
-        "oxygen_cannula_mask": 0.8,
-        "cardiac_monitor_wall": 0.4,
-        "pulse_oximeter_portable": 0.4,
-        "hgt_strips": 0.5
+    "Oxygen Tank": {
+        "type": "equipment",
+        "avg_use": 0.06
     },
-    "CAP": {
-        "sterile_gloves": 1.0,
-        "nebulizer_kit": 0.5,
-        "nebulizer_machine": 0.3,
-        "oxygen_cannula_mask": 0.6,
-        "cardiac_monitor_wall": 0.3
+    "Infusion Pump": {
+        "type": "equipment",
+        "avg_use": 0.04
     },
-    "CAP HIGH RISK": {
-        "sterile_gloves": 1.0,
-        "nebulizer_kit": 0.8,
-        "nebulizer_machine": 0.5,
-        "oxygen_cannula_mask": 0.9,
-        "cardiac_monitor_wall": 0.5,
-        "infusion_pump": 0.3
+    "Portable Suction Machine": {
+        "type": "equipment",
+        "avg_use": 0.04
     },
-
-    # --- Dengue / febrile illnesses with fluids ---
-    "DENGUE FEVER": {
-        "sterile_gloves": 1.0,
-        "iv_cannula_22g": 1.0,
-        "macroset": 0.6,
-        "microset": 0.6,
-        "soluset": 0.6,
-        "hgt_strips": 0.8
+    "ECG Machine": {
+        "type": "equipment",
+        # used sequentially, not all day on one patient
+        "avg_use": 0.01
     },
-
-    # --- Trauma / injury ---
-    "LACERATED WOUND": {
-        "sterile_gloves": 1.5,
-        "elastic_bandage": 0.5
+    "Fetal Doppler": {
+        "type": "equipment",
+        "avg_use": 0.01
     },
-    "LACERATION": {
-        "sterile_gloves": 1.5,
-        "elastic_bandage": 0.5
+    "Gloves (Bedside)": {
+        "type": "equipment",
+        # rough proxy: fraction of boxes "open" in use
+        "avg_use": 0.10
     },
-    "FALL": {
-        "sterile_gloves": 1.0,
-        "stretcher": 0.2,
-        "wheelchair": 0.2,
-        "cervical_collar": 0.1,
-        "spine_board": 0.05
+    "Pulse Oximeter": {
+        "type": "equipment",
+        # some already monitored via cardiac monitor; fewer portables
+        "avg_use": 0.04
     },
-    "FRACTURE": {
-        "sterile_gloves": 1.0,
-        "elastic_bandage": 0.8,
-        "stretcher": 0.3,
-        "wheelchair": 0.3
+    "Nebulizer Machine": {
+        "type": "equipment",
+        "avg_use": 0.04
     },
-    "CONTUSION": {
-        "sterile_gloves": 0.5,
-        "elastic_bandage": 0.5
+    "Thermometer": {
+        "type": "equipment",
+        # shared across bays; low concurrent demand
+        "avg_use": 0.05
     },
-    "ABRASION": {
-        "sterile_gloves": 0.5,
-        "elastic_bandage": 0.5
+    "Defibrillator": {
+        "type": "equipment",
+        "avg_use": 0.005  # very occasionally in active use
+    },
+    "Glucose Monitor": {
+        "type": "equipment",
+        "avg_use": 0.01
     },
 
-    # --- High-acuity / ER resuscitation style (simplified) ---
-    "CARDIAC ARREST": {
-        "sterile_gloves": 2.0,
-        "ambu_bag_mask": 0.5,
-        "intubation_set": 0.3,
-        "crash_cart": 0.5,
-        "defibrillator": 0.3,
-        "oxygen_tank": 0.8
+    # -----------------------------
+    # Per-nurse consumables
+    # -----------------------------
+    "Gown": {
+        "type": "consumable_per_nurse",
+        "avg_use": 1.0  # 1 per nurse per shift
     },
-    "OUT OF HOSPITAL CARDIAC ARREST": {
-        "sterile_gloves": 2.0,
-        "ambu_bag_mask": 0.5,
-        "intubation_set": 0.3,
-        "crash_cart": 0.5,
-        "defibrillator": 0.3,
-        "oxygen_tank": 0.8
+    "N95 Mask": {
+        "type": "consumable_per_nurse",
+        "avg_use": 1.0
     },
+
+    # -----------------------------
+    # Fixed supplies (concurrent usage vs capacity)
+    # -----------------------------
+    "Stretcher": {
+        "type": "fixed",
+        # ~10–15% of patients on stretchers at once
+        "avg_use": 0.15
+    },
+    "Wheelchair": {
+        "type": "fixed",
+        "avg_use": 0.05
+    },
+    "Bassinet": {
+        "type": "fixed",
+        "avg_use": 0.03
+    },
+    "Crib": {
+        "type": "fixed",
+        "avg_use": 0.03
+    },
+    "Spine Board": {
+        "type": "fixed",
+        "avg_use": 0.01
+    },
+    "Cervical Collar": {
+        "type": "fixed",
+        "avg_use": 0.01
+    },
+    "Crash Cart": {
+        "type": "fixed",
+        "avg_use": 0.005
+    },
+    "Mayo Table": {
+        "type": "fixed",
+        "avg_use": 0.01
+    },
+    "Ambu Bag Mask": {
+        "type": "fixed",
+        "avg_use": 0.01
+    },
+    "Intubation Set": {
+        "type": "fixed",
+        "avg_use": 0.01
+    }
 }
-
 
 
 # --- Helper Functions ---
@@ -643,23 +663,45 @@ def dashboard():
 
 @app.route('/api/predict', methods=['POST'])
 def api_predict():
+    """
+    Predict total patients for a given Year–Month–Consultation_Type–Case
+    using the aggregated monthly-per-case model.
+    """
     try:
+        if not os.path.exists(MODEL_FILE):
+            return jsonify({'error': f'Model file not found at {MODEL_FILE}. Please train the model first.'}), 500
+
         model = joblib.load(MODEL_FILE)
-        data = request.json
+        data = request.json or {}
+
+        year = int(data['year'])
+        month = int(data['month'])
+        consult_type = int(data['consult_type'])
+        case_id = int(data['case_id'])
+
+        # We may receive sex/age_range from the frontend, but the new model
+        # does NOT use them. They are safely ignored:
+        # sex = int(data.get('sex', 0))
+        # age_range = int(data.get('age_range', 0))
+
         X_new = pd.DataFrame({
-            "Year": [int(data['year'])],
-            "Month": [int(data['month'])],
-            "Consultation_Type": [int(data['consult_type'])],
-            "Case": [int(data['case_id'])],
-            "Sex": [int(data['sex'])],
-            "Age_range": [int(data['age_range'])]
+            "Year": [year],
+            "Month": [month],
+            "Consultation_Type": [consult_type],
+            "Case": [case_id]
         })
+
         prediction = model.predict(X_new)
-        return jsonify({'prediction': round(prediction[0], 2)})
+        # prediction[0] is the predicted TOTAL PATIENTS for that combination in that month
+        return jsonify({'prediction': round(float(prediction[0]), 2)})
+
+    except KeyError as e:
+        return jsonify({'error': f'Missing required field: {str(e)}'}), 400
     except FileNotFoundError:
         return jsonify({'error': f'Model file not found at {MODEL_FILE}. Please train the model first.'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/past_data')
 def api_past_data():
@@ -818,67 +860,85 @@ def api_feature_importance():
 def api_top_cases():
     """
     Gets top 10 cases for a selected month, categorized by consultation type,
-    using predictions from the trained Random Forest model.
+    using predictions from the aggregated monthly-per-case Random Forest model.
+
+    Uses logs/monthly_case_summary.csv generated by train_model.py:
+    columns include:
+        Year, Month, Consultation_Type, Case, Total_Patients, Predicted, Date
     """
     try:
-        month = int(request.json['month'])
-        # --- 1. Load data and case dictionary ---
-        df = pd.read_csv(CLEANED_CSV)
+        request_data = request.get_json() or {}
+        month = int(request_data['month'])
+
+        # --- 1. Load case dictionary ---
+        if not os.path.exists(CASE_DICT_FILE):
+            return jsonify({'error': 'Case dictionary file not found. Please process files.'}), 404
+
         with open(CASE_DICT_FILE, 'r') as f:
             case_dict = json.load(f)
         inv_case_dict_numeric = {v: k for k, v in case_dict.items()}
 
-        # --- 2. Check if model file exists ---
-        if not os.path.exists(MODEL_FILE):
-            return jsonify({'error': 'Model file not found. Please train the model first.'}), 500
+        # --- 2. Ensure summary file from the new model exists ---
+        if not os.path.exists(MONTH_CASE_SUMMARY_FILE):
+            return jsonify({'error': 'Monthly case summary not found. Please train the model first.'}), 500
 
-        # --- 3. Load trained model ---
-        model = joblib.load(MODEL_FILE)
-
-        # --- 4. Filter by selected month (and create a safe copy) ---
-        df_month_for_check = df[df['Month'] == month]
-        if df_month_for_check.empty:
-            return jsonify({'error': f'No historical data found for {pd.to_datetime(f"2024-{month}-01").strftime("%B")}. Cannot make predictions.'}), 404
-        df_month = df_month_for_check.copy()
+        # --- 3. Load aggregated monthly-per-case data ---
+        df = pd.read_csv(MONTH_CASE_SUMMARY_FILE)
+        if 'Year' not in df.columns or 'Month' not in df.columns:
+            return jsonify({'error': 'monthly_case_summary.csv has unexpected format (missing Year/Month).'}), 500
 
 
-        # --- 5. Prepare features for prediction ---
-        features = ["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range"]
-        
-        # Ensure all feature columns are present, even if empty
-        for col in features:
-            if col not in df_month.columns:
-                return jsonify({'error': f'Missing required column: {col}'}), 500
-                
-        X_month = df_month[features]
+        # Expect columns: Year, Month, Consultation_Type, Case, Total_Patients, Predicted, Date
+        if 'Month' not in df.columns or 'Consultation_Type' not in df.columns or \
+           'Case' not in df.columns or 'Total_Patients' not in df.columns or \
+           'Predicted' not in df.columns:
+            return jsonify({'error': 'monthly_case_summary.csv has unexpected format.'}), 500
 
-        # --- 6. Predict totals using the trained model ---
-        df_month["Predicted_Total"] = model.predict(X_month)
+        # --- 4. Filter by selected month (across all years, to match previous behavior) ---
+        df_month_all = df[df['Month'] == month].copy()
+        if df_month_all.empty:
+            return jsonify({
+                'error': f'No aggregated data found for month {pd.to_datetime(f"2024-{month}-01").strftime("%B")}.'
+            }), 404
 
-        # --- 7. Compare actual vs predicted totals ---
-        actual_total = df_month["Total"].sum()
-        predicted_total = df_month["Predicted_Total"].sum()
+        latest_year = df_month_all['Year'].max()
+        df_month = df_month_all[df_month_all['Year'] == latest_year].copy()
 
-        # --- 8. Evaluate monthly accuracy ---
-        r2 = r2_score(df_month["Total"], df_month["Predicted_Total"])
-        mae = mean_absolute_error(df_month["Total"], df_month["Predicted_Total"])
-        rmse = np.sqrt(mean_squared_error(df_month["Total"], df_month["Predicted_Total"]))
+        # --- 5. Compute overall totals & accuracy metrics for that month ---
+        actual_total = df_month["Total_Patients"].sum()
+        predicted_total = df_month["Predicted"].sum()
 
-        # --- 9. Get categorized top 10 cases BASED ON PREDICTION ---
-        consultation_data = get_top_10_by_type(df_month, 1, inv_case_dict_numeric, column_to_sum='Predicted_Total')
-        diagnosis_data = get_top_10_by_type(df_month, 2, inv_case_dict_numeric, column_to_sum='Predicted_Total')
-        mortality_data = get_top_10_by_type(df_month, 3, inv_case_dict_numeric, column_to_sum='Predicted_Total')
+        # Accuracy metrics at aggregated level; guard against single-row edge case for R²
+        if len(df_month) > 1:
+            r2 = r2_score(df_month["Total_Patients"], df_month["Predicted"])
+        else:
+            r2 = float('nan')  # not defined for single sample
 
-        # --- 10. Return JSON response ---
+        mae = mean_absolute_error(df_month["Total_Patients"], df_month["Predicted"])
+        rmse = np.sqrt(mean_squared_error(df_month["Total_Patients"], df_month["Predicted"]))
+
+        # --- 6. Get categorized top 10 cases BASED ON PREDICTION ---
+        # Note: column_to_sum='Predicted' now (not 'Predicted_Total')
+        consultation_data = get_top_10_by_type(
+            df_month, 1, inv_case_dict_numeric, column_to_sum='Predicted'
+        )
+        diagnosis_data = get_top_10_by_type(
+            df_month, 2, inv_case_dict_numeric, column_to_sum='Predicted'
+        )
+        mortality_data = get_top_10_by_type(
+            df_month, 3, inv_case_dict_numeric, column_to_sum='Predicted'
+        )
+
+        # --- 7. Return JSON response ---
         return jsonify({
             'month': month,
             'total_summary': {
                 'actual_total': round(float(actual_total), 2),
                 'predicted_total': round(float(predicted_total), 2),
                 'accuracy_metrics': {
-                    'R²': round(r2, 4),
-                    'MAE': round(mae, 4),
-                    'RMSE': round(rmse, 4)
+                    'R²': None if np.isnan(r2) else round(float(r2), 4),
+                    'MAE': round(float(mae), 4),
+                    'RMSE': round(float(rmse), 4)
                 }
             },
             'consultation': consultation_data,
@@ -886,133 +946,193 @@ def api_top_cases():
             'mortality': mortality_data
         })
 
+    except KeyError as e:
+        return jsonify({'error': f'Missing required field in request: {str(e)}'}), 400
     except FileNotFoundError:
         return jsonify({'error': 'Data or case dictionary file not found. Please process files.'}), 404
     except Exception as e:
         print(f"Error in /api/top_cases: {e}")
         return jsonify({'error': str(e)}), 500
-    
 
+    
 @app.route('/api/resource_needs', methods=['POST'])
-def api_resource_needs():
+def resource_needs():
     """
-    Compute predicted resource needs for the selected month, based on
-    predicted top 10 cases and per-patient resource usage.
+    Calculate monthly supply usage, equipment demand, and resource utilization.
+    Expects JSON body with: predicted_visits, general_factor, nurses_per_shift
     """
     try:
-        month = int(request.json['month'])
-
-        # --- 1. Load data & case dictionary ---
-        df = pd.read_csv(CLEANED_CSV)
-        with open(CASE_DICT_FILE, 'r') as f:
-            case_dict = json.load(f)
-        inv_case_dict_numeric = {v: k for k, v in case_dict.items()}
-
-        # --- 2. Load model ---
-        if not os.path.exists(MODEL_FILE):
-            return jsonify({'error': 'Model file not found. Please train the model first.'}), 500
-        model = joblib.load(MODEL_FILE)
-
-        # --- 3. Filter selected month ---
-        df_month = df[df['Month'] == month].copy()
-        if df_month.empty:
-            return jsonify({'error': 'No historical data for this month. Cannot compute resource needs.'}), 404
-
-        # --- 4. Predict totals for each row ---
-        features = ["Year", "Month", "Consultation_Type", "Case", "Sex", "Age_range"]
-        for col in features:
-            if col not in df_month.columns:
-                return jsonify({'error': f'Missing required column: {col}'}), 500
-
-        df_month["Predicted_Total"] = model.predict(df_month[features])
-
-        # --- 5. Aggregate predicted patients per Case (all consultation types combined) ---
-        agg_cases = (
-            df_month.groupby("Case")["Predicted_Total"]
-                    .sum()
-                    .reset_index()
-                    .sort_values("Predicted_Total", ascending=False)
-        )
-
-        # Top 10 cases by predicted count
-        top10_cases = agg_cases.head(10).copy()
-        top10_cases["CaseName"] = top10_cases["Case"].map(inv_case_dict_numeric).fillna("Unknown Case")
-
-        # --- 6. Compute monthly resource demand from these top cases ---
-        resource_demand = {res_key: 0.0 for res_key in RESOURCE_INVENTORY.keys()}
-        case_details = []
-
-        for _, row in top10_cases.iterrows():
-            case_name = row["CaseName"]
-            predicted_patients = float(row["Predicted_Total"])
-
-            usage_map = CASE_RESOURCE_USAGE.get(case_name, {})
-            case_details.append({
-                "CaseName": case_name,
-                "Predicted_Patients": round(predicted_patients, 2),
-                "resources_used": usage_map
-            })
-
-            for res_key, units_per_patient in usage_map.items():
-                if res_key not in resource_demand:
-                    resource_demand[res_key] = 0.0
-                resource_demand[res_key] += predicted_patients * units_per_patient
-
-        # --- 7. Convert per-shift capacity to monthly capacity, evaluate utilization ---
-        days_in_month = 30  # or compute from Year/Month if you like
-        total_shifts = days_in_month * SHIFTS_PER_DAY
-
-        resource_summary = []
-        for res_key, demand in resource_demand.items():
-            info = RESOURCE_INVENTORY.get(res_key, {
-                "display_name": res_key,
-                "unit": "units",
-                "capacity_per_shift": 0,
-                "type": "unknown"
-            })
-
-            cap_per_shift = info.get("capacity_per_shift", 0)
-            monthly_capacity = cap_per_shift * total_shifts if cap_per_shift else 0
-
-            utilization = (demand / monthly_capacity) if monthly_capacity > 0 else None
-
-            if utilization is None:
+        # Get data from JSON body (not query params)
+        data = request.get_json()
+        predicted_visits = float(data.get('predicted_visits', 0))
+        general_factor = float(data.get('general_factor', 1.0))
+        nurses_per_shift = int(data.get('nurses_per_shift', NURSES_PER_SHIFT))
+        
+        # Validate input
+        if predicted_visits <= 0:
+            return jsonify({'error': 'predicted_visits must be greater than 0'}), 400
+        
+        # Calculate adjusted monthly visits
+        adjusted_visits = predicted_visits * general_factor
+        
+        # Calculate shifts per month
+        shifts_per_month = SHIFTS_PER_DAY * DAYS_PER_MONTH
+        avg_patients_per_shift = adjusted_visits / shifts_per_month
+        
+        results = []
+        
+        for resource_name, usage_info in GENERAL_RESOURCE_USAGE.items():
+            inventory = RESOURCE_INVENTORY.get(resource_name)
+            
+            if not inventory:
                 continue
-            elif utilization < 0.7:
-                status = "OK"
-            elif utilization < 1.0:
-                status = "HIGH_USAGE"
-            else:
-                status = "OVER_CAPACITY"
-
-            resource_summary.append({
-                "resource_key": res_key,
-                "resource_name": info.get("display_name", res_key),
-                "unit": info.get("unit", "units"),
-                "type": info.get("type", "unknown"),
-                "predicted_monthly_demand": round(demand, 2),
-                "monthly_capacity": round(monthly_capacity, 2),
-                "utilization": round(utilization, 2) if utilization is not None else None,
-                "status": status
-            })
-
-        # Sort so critical ones (high or over capacity) appear first
-        resource_summary.sort(
-            key=lambda x: (x["status"] in ["OVER_CAPACITY", "HIGH_USAGE"], x["utilization"] or 0),
-            reverse=True
-        )
-
+            
+            r_type = usage_info['type']
+            avg_use = usage_info['avg_use']
+            
+            # -----------------------------
+            # 1. CONSUMABLES (per patient)
+            # -----------------------------
+            if r_type == "consumable":
+                # Monthly demand
+                monthly_demand = adjusted_visits * avg_use
+                
+                # Monthly capacity
+                capacity_per_shift = inventory['capacity_per_shift']
+                monthly_capacity = capacity_per_shift * shifts_per_month
+                
+                # Utilization
+                utilization = monthly_demand / monthly_capacity if monthly_capacity > 0 else 1
+                
+                # Status determination
+                status = ("OVER_CAPACITY" if utilization > 1 else
+                         "HIGH_USAGE" if utilization > 0.8 else
+                         "MODERATE" if utilization > 0.5 else
+                         "OK")
+                
+                results.append({
+                    "resource_name": resource_name,
+                    "type": "consumable",
+                    "unit": inventory['unit'],
+                    "monthly_demand": round(monthly_demand, 1),
+                    "monthly_capacity": round(monthly_capacity, 1),
+                    "utilization": round(utilization * 100, 1),  # as percentage
+                    "status": status,
+                    "shortage": round(max(0, monthly_demand - monthly_capacity), 1)
+                })
+            
+            # -----------------------------
+            # 2. EQUIPMENT (concurrent usage)
+            # -----------------------------
+            elif r_type == "equipment":
+                # Average concurrent units needed per shift
+                required_units_per_shift = avg_patients_per_shift * avg_use
+                
+                # Monthly "demand" = average concurrent need
+                monthly_demand = required_units_per_shift
+                
+                # Capacity
+                capacity_per_shift = inventory['capacity_per_shift']
+                
+                # Utilization
+                utilization = required_units_per_shift / capacity_per_shift if capacity_per_shift > 0 else 1
+                
+                status = ("OVER_CAPACITY" if utilization > 1 else
+                         "HIGH_USAGE" if utilization > 0.8 else
+                         "MODERATE" if utilization > 0.5 else
+                         "OK")
+                
+                results.append({
+                    "resource_name": resource_name,
+                    "type": "equipment",
+                    "unit": inventory['unit'],
+                    "monthly_demand": round(monthly_demand, 1),  # avg concurrent units needed
+                    "monthly_capacity": capacity_per_shift,  # total available
+                    "utilization": round(utilization * 100, 1),
+                    "status": status,
+                    "shortage": round(max(0, required_units_per_shift - capacity_per_shift), 1)
+                })
+            
+            # -----------------------------
+            # 3. PER-NURSE CONSUMABLES
+            # -----------------------------
+            elif r_type == "consumable_per_nurse":
+                # Monthly demand based on nurses
+                monthly_demand = nurses_per_shift * avg_use * shifts_per_month
+                
+                # Monthly capacity
+                capacity_per_shift = inventory['capacity_per_shift']
+                monthly_capacity = capacity_per_shift * shifts_per_month
+                
+                # Utilization
+                utilization = monthly_demand / monthly_capacity if monthly_capacity > 0 else 1
+                
+                status = ("OVER_CAPACITY" if utilization > 1 else
+                         "HIGH_USAGE" if utilization > 0.8 else
+                         "MODERATE" if utilization > 0.5 else
+                         "OK")
+                
+                results.append({
+                    "resource_name": resource_name,
+                    "type": "consumable_per_nurse",
+                    "unit": inventory['unit'],
+                    "monthly_demand": round(monthly_demand, 1),
+                    "monthly_capacity": round(monthly_capacity, 1),
+                    "utilization": round(utilization * 100, 1),
+                    "status": status,
+                    "nurses_per_shift": nurses_per_shift,
+                    "shortage": round(max(0, monthly_demand - monthly_capacity), 1)
+                })
+            
+            # -----------------------------
+            # 4. FIXED SUPPLIES (static inventory)
+            # -----------------------------
+            elif r_type == "fixed":
+                # Peak concurrent demand per shift
+                peak_concurrent_need = avg_patients_per_shift * avg_use
+                
+                # Total available
+                total_available = inventory['total_available']
+                
+                # Utilization
+                utilization = peak_concurrent_need / total_available if total_available > 0 else 1
+                
+                status = ("OVER_CAPACITY" if utilization > 1 else
+                         "HIGH_USAGE" if utilization > 0.8 else
+                         "MODERATE" if utilization > 0.5 else
+                         "OK")
+                
+                results.append({
+                    "resource_name": resource_name,
+                    "type": "fixed",
+                    "unit": inventory['unit'],
+                    "monthly_demand": round(peak_concurrent_need, 1),  # peak concurrent
+                    "monthly_capacity": total_available,
+                    "utilization": round(utilization * 100, 1),
+                    "status": status,
+                    "shortage": round(max(0, peak_concurrent_need - total_available), 1)
+                })
+        
+        # Sort by status priority: OVER_CAPACITY → HIGH_USAGE → MODERATE → OK
+        status_priority = {"OVER_CAPACITY": 0, "HIGH_USAGE": 1, "MODERATE": 2, "OK": 3}
+        results.sort(key=lambda x: (status_priority.get(x["status"], 4), -x["utilization"]))
+        
         return jsonify({
-            "month": month,
-            "top_cases": case_details,
-            "resources": resource_summary
+            "summary": {
+                "predicted_monthly_visits": round(predicted_visits, 0),
+                "adjusted_monthly_visits": round(adjusted_visits, 0),
+                "general_factor": general_factor,
+                "avg_patients_per_shift": round(avg_patients_per_shift, 1),
+                "nurses_per_shift": nurses_per_shift,
+                "shifts_per_month": shifts_per_month
+            },
+            "resources": results
         })
-
-    except FileNotFoundError:
-        return jsonify({'error': 'Data or dictionary file not found. Please process files.'}), 404
+        
     except Exception as e:
         print(f"Error in /api/resource_needs: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/files')
 def api_files():
