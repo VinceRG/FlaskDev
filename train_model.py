@@ -158,7 +158,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         base_path = sys.argv[1]
     else:
-        base_path = r"D:\PCCH_SE\FlaskDev"
+        base_path = r"D:\FlaskDev"
 
     # Train the model
     train_and_evaluate(base_path)

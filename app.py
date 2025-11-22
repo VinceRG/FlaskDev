@@ -14,7 +14,7 @@ from flask import send_from_directory
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 # --- Configuration ---
-BASE_FOLDER = r"D:\PCCH_SE\FlaskDev"
+BASE_FOLDER = r"D:\FlaskDev"
 INPUT_FOLDER = os.path.join(BASE_FOLDER, "data", "excel_folder")
 PROCESSED_FOLDER = os.path.join(BASE_FOLDER, "data", "processed")
 LOGS_FOLDER = os.path.join(BASE_FOLDER, "logs")
